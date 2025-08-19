@@ -18,7 +18,7 @@ model Player {
   createdAt     DateTime  @default(now())
 
   entries       Entry[]
-  
+
   @@map("players")
 }
 
@@ -31,7 +31,7 @@ model Course {
   createdAt   DateTime  @default(now())
 
   tournaments Tournament[]
-  
+
   @@map("courses")
 }
 
@@ -56,7 +56,7 @@ model Tournament {
   entries               Entry[]
   groups                Group[]
   auditEvents           AuditEvent[]
-  
+
   @@map("tournaments")
 }
 
@@ -69,7 +69,7 @@ model Group {
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   entries      Entry[]
-  
+
   @@map("groups")
 }
 
@@ -94,15 +94,14 @@ model Entry {
 model HoleScore {
   id              String   @id @default(cuid())
   entryId         String
-  hole            Int
+  hole            Int      // 1-18
   strokes         Int
-  clientUpdatedAt DateTime @default(now()) // device timestamp for LWW
+  clientUpdatedAt DateTime? // When the client made this change
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   entry Entry @relation(fields: [entryId], references: [id])
 
-  // one score per (entry,hole); required for our findUnique() code
   @@unique([entryId, hole])
 }
 

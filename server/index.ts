@@ -7,7 +7,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 import resultsRouter from "./routes/results";
+import scoresRouter from "./routes/scores";
 app.use("/api", resultsRouter);
+app.use("/api", scoresRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
