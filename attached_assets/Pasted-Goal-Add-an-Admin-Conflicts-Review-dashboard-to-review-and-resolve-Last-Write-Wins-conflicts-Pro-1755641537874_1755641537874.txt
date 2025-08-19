@@ -1,0 +1,54 @@
+Goal: Add an Admin “Conflicts Review” dashboard to review and resolve Last-Write-Wins conflicts. Protect the API with the tournament passcode. ONE cohesive feature → ONE checkpoint. Keep diffs tight.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + Dexie.
+
+Scope
+
+1) Server — conflict buffer & API (hardened)
+- Expand the in-memory ring buffer entries to include:
+  { id, tournamentId, tournamentName, groupId?, groupName?, entryId, playerName, hole,
+    incomingStrokes, incomingAt, storedStrokes, storedAt }
+  (If you already record conflicts, enrich them with tournament & player info.)
+- Add GET /api/admin/conflicts/recent?tournamentId=...  -> returns last 200 (newest first; filter by tournamentId if provided)
+- Add POST /api/admin/conflicts/resolve
+  Body: { tournamentId, entryId, hole, action: "apply-server" | "force-local", forceValue?: number }
+  Behavior:
+    - "apply-server": just mark as resolved (no score change).
+    - "force-local": upsert /api/scores with strokes=(forceValue ?? incomingStrokes) and clientUpdatedAt = Date.now()+1 to win LWW.
+- Add DELETE /api/admin/conflicts/clear?tournamentId=... -> clears buffer (all or scoped).
+- Simple auth: require headers { "x-tournament-id": <id>, "x-admin-passcode": <passcode> } to match Tournament.passcode;
+  otherwise 401. Apply this to all /api/admin/conflicts/* endpoints.
+
+2) Client — Admin page
+- New route: /admin/conflicts
+- UI: mobile-first table/list with filters:
+  - Top: Tournament selector (if you already have one) or an input for tournamentId + passcode fields (stored in local state only).
+  - Filters: by player name (client-side), by hole number.
+- Each row shows: player, hole, incoming vs stored (with timestamps), group, tournament name.
+- Actions per row:
+  - Apply Server (dismiss row)
+  - Force Local (opens a tiny dialog: default to incomingStrokes; allow editing number; confirm → calls resolve API)
+- Bulk: “Clear Resolved/All” button (calls DELETE).
+- Empty state when no conflicts.
+
+3) Wiring / DX
+- The Score screen continues to push conflicts into the ring buffer when a POST /api/scores is “ignored”.
+- Add a small link to /admin/conflicts from your existing admin nav.
+- README: short “Conflicts Review” section describing headers (x-tournament-id, x-admin-passcode), actions, and when to use them.
+
+4) Tests (Vitest)
+- Unit:
+  - conflict reducer/selector functions (e.g., filter by player/hole).
+  - a tiny “makeAuthHeaders” helper returns headers shape.
+- API:
+  - resolve with "force-local" actually flips value via LWW (mock prisma + Date.now()).
+  - unauthorized requests to /api/admin/conflicts/* return 401.
+- (Optional) Component test: row renders values and calls resolve handler.
+
+Acceptance (before creating the single checkpoint):
+- Visiting /admin/conflicts and entering tournamentId + passcode shows recent conflicts (if any).
+- “Apply Server” removes a row; “Force Local” wins LWW (server now reflects forced value).
+- Unauthorized calls (wrong/missing passcode) are blocked.
+- Clear button empties the list for that tournament.
+- Lint/tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

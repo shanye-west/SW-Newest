@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, MapPin, Trophy, UsersIcon, Home } from 'lucide-react';
+import { Users, MapPin, Trophy, UsersIcon, Home, AlertTriangle } from 'lucide-react';
 
 export default function AdminDashboard() {
   const adminLinks = [
@@ -10,6 +10,7 @@ export default function AdminDashboard() {
     { href: '/courses', label: 'Courses', icon: MapPin },
     { href: '/tournaments', label: 'Tournaments', icon: Trophy },
     { href: '/groups', label: 'Groups', icon: UsersIcon },
+    { href: '/admin/conflicts', label: 'Conflicts Review', icon: AlertTriangle },
   ];
 
   return (

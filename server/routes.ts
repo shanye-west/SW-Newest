@@ -982,18 +982,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Conflict tracking (in-memory ring buffer)
-  const conflictBuffer: Array<{
+  // Conflict tracking (in-memory ring buffer) - Enhanced for Admin Review
+  const CONFLICT_BUFFER_SIZE = 200;
+  interface ConflictEntry {
+    id: string;
+    tournamentId: string;
+    tournamentName: string;
+    groupId?: string;
+    groupName?: string;
     entryId: string;
+    playerName: string;
     hole: number;
     incomingStrokes: number;
     incomingAt: Date;
     storedStrokes: number;
     storedAt: Date;
-  }> = [];
-  const CONFLICT_BUFFER_SIZE = 200;
+    resolved?: boolean;
+    resolvedAt?: Date;
+  }
+  
+  const conflictBuffer: ConflictEntry[] = [];
 
-  function addConflict(conflict: {
+  async function addConflict(conflict: {
     entryId: string;
     hole: number;
     incomingStrokes: number;
@@ -1001,9 +1011,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storedStrokes: number;
     storedAt: Date;
   }) {
-    conflictBuffer.push(conflict);
-    if (conflictBuffer.length > CONFLICT_BUFFER_SIZE) {
-      conflictBuffer.shift(); // Remove oldest
+    try {
+      // Enrich with tournament and player info
+      const entry = await prisma.entry.findUnique({
+        where: { id: conflict.entryId },
+        include: {
+          player: { select: { name: true } },
+          tournament: { select: { id: true, name: true } },
+          group: { select: { id: true, name: true } }
+        }
+      });
+
+      if (entry) {
+        const enrichedConflict: ConflictEntry = {
+          id: `${conflict.entryId}-${conflict.hole}-${Date.now()}`,
+          tournamentId: entry.tournament.id,
+          tournamentName: entry.tournament.name,
+          groupId: entry.group?.id,
+          groupName: entry.group?.name,
+          entryId: conflict.entryId,
+          playerName: entry.player.name,
+          hole: conflict.hole,
+          incomingStrokes: conflict.incomingStrokes,
+          incomingAt: conflict.incomingAt,
+          storedStrokes: conflict.storedStrokes,
+          storedAt: conflict.storedAt,
+          resolved: false
+        };
+
+        conflictBuffer.push(enrichedConflict);
+        if (conflictBuffer.length > CONFLICT_BUFFER_SIZE) {
+          conflictBuffer.shift(); // Remove oldest
+        }
+      }
+    } catch (error) {
+      console.error('Error enriching conflict:', error);
+      // Fallback: store basic conflict
+      conflictBuffer.push({
+        id: `${conflict.entryId}-${conflict.hole}-${Date.now()}`,
+        tournamentId: 'unknown',
+        tournamentName: 'Unknown Tournament',
+        entryId: conflict.entryId,
+        playerName: 'Unknown Player',
+        hole: conflict.hole,
+        incomingStrokes: conflict.incomingStrokes,
+        incomingAt: conflict.incomingAt,
+        storedStrokes: conflict.storedStrokes,
+        storedAt: conflict.storedAt,
+        resolved: false
+      });
+    }
+  }
+
+  // Auth middleware for admin conflicts endpoints
+  async function validateAdminAccess(req: any, res: any, next: any) {
+    const tournamentId = req.headers['x-tournament-id'] as string;
+    const passcode = req.headers['x-admin-passcode'] as string;
+
+    if (!tournamentId || !passcode) {
+      return res.status(401).json({ error: 'Missing x-tournament-id or x-admin-passcode headers' });
+    }
+
+    try {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { passcode: true }
+      });
+
+      if (!tournament || tournament.passcode !== passcode) {
+        return res.status(401).json({ error: 'Invalid tournament ID or passcode' });
+      }
+
+      (req as any).validatedTournamentId = tournamentId;
+      next();
+    } catch (error) {
+      console.error('Error validating admin access:', error);
+      res.status(500).json({ error: 'Authentication failed' });
     }
   }
 
@@ -1032,7 +1115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Last-Write-Wins: compare timestamps
       if (existingScore && existingScore.clientUpdatedAt && existingScore.clientUpdatedAt > incomingTimestamp) {
         // Incoming score is stale, ignore it and log conflict
-        addConflict({
+        await addConflict({
           entryId,
           hole: parseInt(hole),
           incomingStrokes: parseInt(strokes),
@@ -1093,12 +1176,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get recent conflicts for admin review
-  app.get('/api/admin/conflicts/recent', async (req, res) => {
+  // Admin Conflicts Review API - Protected by tournament passcode
+  app.get('/api/admin/conflicts/recent', validateAdminAccess, async (req, res) => {
     try {
-      res.json({ conflicts: conflictBuffer });
+      const { tournamentId } = req.query;
+      const validatedTournamentId = (req as any).validatedTournamentId;
+      
+      // Filter conflicts by tournament ID if provided
+      let conflicts = conflictBuffer;
+      if (tournamentId && tournamentId === validatedTournamentId) {
+        conflicts = conflictBuffer.filter(c => c.tournamentId === tournamentId);
+      } else if (validatedTournamentId) {
+        conflicts = conflictBuffer.filter(c => c.tournamentId === validatedTournamentId);
+      }
+      
+      // Return newest first, limit to 200
+      const recentConflicts = conflicts
+        .filter(c => !c.resolved)
+        .sort((a, b) => b.incomingAt.getTime() - a.incomingAt.getTime())
+        .slice(0, 200);
+      
+      res.json({ conflicts: recentConflicts });
     } catch (error) {
       console.error('Error fetching conflicts:', error);
       res.status(500).json({ error: 'Failed to fetch conflicts' });
+    }
+  });
+
+  app.post('/api/admin/conflicts/resolve', validateAdminAccess, async (req, res) => {
+    try {
+      const { tournamentId, entryId, hole, action, forceValue } = req.body;
+      const validatedTournamentId = (req as any).validatedTournamentId;
+      
+      if (tournamentId !== validatedTournamentId) {
+        return res.status(403).json({ error: 'Tournament ID mismatch' });
+      }
+      
+      if (!entryId || !hole || !action) {
+        return res.status(400).json({ error: 'Missing required fields: entryId, hole, action' });
+      }
+      
+      if (!['apply-server', 'force-local'].includes(action)) {
+        return res.status(400).json({ error: 'Invalid action. Must be apply-server or force-local' });
+      }
+      
+      // Find and mark the conflict as resolved
+      const conflictIndex = conflictBuffer.findIndex(c => 
+        c.entryId === entryId && 
+        c.hole === hole && 
+        c.tournamentId === tournamentId &&
+        !c.resolved
+      );
+      
+      if (conflictIndex >= 0) {
+        conflictBuffer[conflictIndex].resolved = true;
+        conflictBuffer[conflictIndex].resolvedAt = new Date();
+      }
+      
+      if (action === 'force-local') {
+        const conflict = conflictBuffer[conflictIndex];
+        const strokesToForce = forceValue !== undefined ? forceValue : conflict?.incomingStrokes;
+        
+        if (strokesToForce === undefined) {
+          return res.status(400).json({ error: 'forceValue required for force-local action when conflict not found' });
+        }
+        
+        // Force the local value by creating a new score with timestamp ahead of current
+        const forceTimestamp = new Date(Date.now() + 1);
+        
+        await prisma.holeScore.upsert({
+          where: {
+            entryId_hole: {
+              entryId,
+              hole: parseInt(hole)
+            }
+          },
+          update: {
+            strokes: strokesToForce,
+            clientUpdatedAt: forceTimestamp,
+            updatedAt: new Date()
+          },
+          create: {
+            entryId,
+            hole: parseInt(hole),
+            strokes: strokesToForce,
+            clientUpdatedAt: forceTimestamp,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        });
+        
+        console.log(`Forced local value: entry ${entryId}, hole ${hole}, strokes ${strokesToForce}, timestamp ${forceTimestamp}`);
+      }
+      
+      res.json({ 
+        success: true, 
+        action,
+        resolved: conflictIndex >= 0,
+        ...(action === 'force-local' && { forcedValue: forceValue !== undefined ? forceValue : conflictBuffer[conflictIndex]?.incomingStrokes })
+      });
+    } catch (error) {
+      console.error('Error resolving conflict:', error);
+      res.status(500).json({ error: 'Failed to resolve conflict' });
+    }
+  });
+
+  app.delete('/api/admin/conflicts/clear', validateAdminAccess, async (req, res) => {
+    try {
+      const { tournamentId } = req.query;
+      const validatedTournamentId = (req as any).validatedTournamentId;
+      
+      if (tournamentId && tournamentId !== validatedTournamentId) {
+        return res.status(403).json({ error: 'Tournament ID mismatch' });
+      }
+      
+      let clearedCount = 0;
+      if (tournamentId === validatedTournamentId) {
+        // Clear conflicts for specific tournament
+        const originalLength = conflictBuffer.length;
+        for (let i = conflictBuffer.length - 1; i >= 0; i--) {
+          if (conflictBuffer[i].tournamentId === tournamentId) {
+            conflictBuffer.splice(i, 1);
+            clearedCount++;
+          }
+        }
+      } else {
+        // Clear all conflicts for validated tournament
+        const originalLength = conflictBuffer.length;
+        for (let i = conflictBuffer.length - 1; i >= 0; i--) {
+          if (conflictBuffer[i].tournamentId === validatedTournamentId) {
+            conflictBuffer.splice(i, 1);
+            clearedCount++;
+          }
+        }
+      }
+      
+      res.json({ success: true, clearedCount });
+    } catch (error) {
+      console.error('Error clearing conflicts:', error);
+      res.status(500).json({ error: 'Failed to clear conflicts' });
     }
   });
 

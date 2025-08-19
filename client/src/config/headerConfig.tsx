@@ -149,6 +149,11 @@ export const headerConfig: HeaderConfig[] = [
     pattern: /^\/tournaments\/[^/]+\/leaderboards$/,
     title: 'Leaderboards',
     actions: []
+  },
+  {
+    pattern: '/admin/conflicts',
+    title: 'Conflicts Review',
+    actions: []
   }
 ];
 
