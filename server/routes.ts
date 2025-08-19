@@ -1,39 +1,48 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { prisma } from "../lib/db";
-import { calculateLeaderboards, calculateGrossSkins, calculateSkinsPayouts } from "../lib/scoring";
+import {
+  calculateLeaderboards,
+  calculateGrossSkins,
+  calculateSkinsPayouts,
+} from "../lib/scoring";
 import { resultsCache } from "./cache";
 import { makeShareToken } from "../scripts/backfillShareTokens";
 
 // Middleware to check if tournament is finalized
 async function checkTournamentNotFinalized(req: any, res: any, next: any) {
   try {
-    let tournamentId = req.body.tournamentId || req.params.tournamentId || req.params.id;
-    
+    let tournamentId =
+      req.body.tournamentId || req.params.tournamentId || req.params.id;
+
     // For hole-scores endpoints, get tournament from entryId
     if (!tournamentId && req.body.entryId) {
       const entry = await prisma.entry.findUnique({
         where: { id: req.body.entryId },
-        select: { tournamentId: true }
+        select: { tournamentId: true },
       });
       tournamentId = entry?.tournamentId;
     }
-    
+
     // For batch hole-scores, check the first entry
-    if (!tournamentId && Array.isArray(req.body.scores) && req.body.scores[0]?.entryId) {
+    if (
+      !tournamentId &&
+      Array.isArray(req.body.scores) &&
+      req.body.scores[0]?.entryId
+    ) {
       const entry = await prisma.entry.findUnique({
         where: { id: req.body.scores[0].entryId },
-        select: { tournamentId: true }
+        select: { tournamentId: true },
       });
       tournamentId = entry?.tournamentId;
     }
-    
+
     if (!tournamentId) {
       return next(); // Let other validation handle missing tournamentId
     }
 
     const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId }
+      where: { id: tournamentId },
     });
 
     if (tournament?.isFinal) {
@@ -42,18 +51,20 @@ async function checkTournamentNotFinalized(req: any, res: any, next: any) {
 
     next();
   } catch (error) {
-    console.error('Error checking tournament finalization:', error);
+    console.error("Error checking tournament finalization:", error);
     next(); // Continue if check fails
   }
 }
 
 // Admin authentication middleware
 function requireAdminAuth(req: any, res: any, next: any) {
-  const tournamentId = req.headers['x-tournament-id'];
-  const adminPasscode = req.headers['x-admin-passcode'];
+  const tournamentId = req.headers["x-tournament-id"];
+  const adminPasscode = req.headers["x-admin-passcode"];
 
   if (!tournamentId || !adminPasscode) {
-    return res.status(401).json({ error: "Missing x-tournament-id or x-admin-passcode headers" });
+    return res
+      .status(401)
+      .json({ error: "Missing x-tournament-id or x-admin-passcode headers" });
   }
 
   // Store for use in route handlers
@@ -64,58 +75,62 @@ function requireAdminAuth(req: any, res: any, next: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Players API routes
-  app.get('/api/players', async (req, res) => {
+  app.get("/api/players", async (req, res) => {
     try {
       const players = await prisma.player.findMany({
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: "desc" },
       });
       res.json(players);
     } catch (error) {
-      console.error('Error fetching players:', error);
-      res.status(500).json({ error: 'Failed to fetch players' });
+      console.error("Error fetching players:", error);
+      res.status(500).json({ error: "Failed to fetch players" });
     }
   });
 
-  app.post('/api/players', async (req, res) => {
+  app.post("/api/players", async (req, res) => {
     try {
       const { name, email, handicapIndex } = req.body;
-      
+
       if (!name?.trim()) {
-        return res.status(400).json({ error: 'Name is required' });
+        return res.status(400).json({ error: "Name is required" });
       }
 
       // Enforce HI requirement
       if (!handicapIndex || handicapIndex < 0 || handicapIndex > 54) {
-        return res.status(400).json({ error: 'Valid Handicap Index (0.0 - 54.0) is required' });
+        return res
+          .status(400)
+          .json({ error: "Valid Handicap Index (0.0 - 54.0) is required" });
       }
 
       const player = await prisma.player.create({
         data: {
           name: name.trim(),
           email: email?.trim() || null,
-          handicapIndex: parseFloat(handicapIndex)
-        }
+          handicapIndex: parseFloat(handicapIndex),
+        },
       });
-      
+
       res.status(201).json(player);
     } catch (error) {
-      console.error('Error creating player:', error);
-      res.status(500).json({ error: 'Failed to create player' });
+      console.error("Error creating player:", error);
+      res.status(500).json({ error: "Failed to create player" });
     }
   });
 
-  app.put('/api/players/:id', async (req, res) => {
+  app.put("/api/players/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const { name, email, handicapIndex } = req.body;
-      
+
       if (!name?.trim()) {
-        return res.status(400).json({ error: 'Name is required' });
+        return res.status(400).json({ error: "Name is required" });
       }
 
       // Enforce HI requirement
       if (!handicapIndex || handicapIndex < 0 || handicapIndex > 54) {
-        return res.status(400).json({ error: 'Valid Handicap Index (0.0 - 54.0) is required' });
+        return res
+          .status(400)
+          .json({ error: "Valid Handicap Index (0.0 - 54.0) is required" });
       }
 
       const player = await prisma.player.update({
@@ -123,51 +138,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: {
           name: name.trim(),
           email: email?.trim() || null,
-          handicapIndex: parseFloat(handicapIndex)
-        }
+          handicapIndex: parseFloat(handicapIndex),
+        },
       });
-      
+
       res.json(player);
     } catch (error) {
-      console.error('Error updating player:', error);
-      res.status(500).json({ error: 'Failed to update player' });
+      console.error("Error updating player:", error);
+      res.status(500).json({ error: "Failed to update player" });
     }
   });
 
-  app.delete('/api/players/:id', async (req, res) => {
+  app.delete("/api/players/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       await prisma.player.delete({
-        where: { id }
+        where: { id },
       });
-      
+
       res.status(204).send();
     } catch (error) {
-      console.error('Error deleting player:', error);
-      res.status(500).json({ error: 'Failed to delete player' });
+      console.error("Error deleting player:", error);
+      res.status(500).json({ error: "Failed to delete player" });
     }
   });
 
   // Courses API routes
-  app.get('/api/courses', async (req, res) => {
+  app.get("/api/courses", async (req, res) => {
     try {
       const courses = await prisma.course.findMany({
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: "desc" },
       });
       res.json(courses);
     } catch (error) {
-      console.error('Error fetching courses:', error);
-      res.status(500).json({ error: 'Failed to fetch courses' });
+      console.error("Error fetching courses:", error);
+      res.status(500).json({ error: "Failed to fetch courses" });
     }
   });
 
-  app.post('/api/courses', async (req, res) => {
+  app.post("/api/courses", async (req, res) => {
     try {
       const { name, par, rating, slope } = req.body;
-      
+
       if (!name?.trim() || !par || !rating || !slope) {
-        return res.status(400).json({ error: 'All fields are required' });
+        return res.status(400).json({ error: "All fields are required" });
       }
 
       const course = await prisma.course.create({
@@ -175,24 +190,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: name.trim(),
           par: parseInt(par),
           rating: parseFloat(rating),
-          slope: parseInt(slope)
-        }
+          slope: parseInt(slope),
+        },
       });
-      
+
       res.status(201).json(course);
     } catch (error) {
-      console.error('Error creating course:', error);
-      res.status(500).json({ error: 'Failed to create course' });
+      console.error("Error creating course:", error);
+      res.status(500).json({ error: "Failed to create course" });
     }
   });
 
-  app.put('/api/courses/:id', async (req, res) => {
+  app.put("/api/courses/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const { name, par, rating, slope } = req.body;
-      
+
       if (!name?.trim() || !par || !rating || !slope) {
-        return res.status(400).json({ error: 'All fields are required' });
+        return res.status(400).json({ error: "All fields are required" });
       }
 
       const course = await prisma.course.update({
@@ -201,269 +216,311 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: name.trim(),
           par: parseInt(par),
           rating: parseFloat(rating),
-          slope: parseInt(slope)
-        }
+          slope: parseInt(slope),
+        },
       });
-      
+
       res.json(course);
     } catch (error) {
-      console.error('Error updating course:', error);
-      res.status(500).json({ error: 'Failed to update course' });
+      console.error("Error updating course:", error);
+      res.status(500).json({ error: "Failed to update course" });
     }
   });
 
-  app.delete('/api/courses/:id', async (req, res) => {
+  app.delete("/api/courses/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       await prisma.course.delete({
-        where: { id }
+        where: { id },
       });
-      
+
       res.status(204).send();
     } catch (error) {
-      console.error('Error deleting course:', error);
-      res.status(500).json({ error: 'Failed to delete course' });
+      console.error("Error deleting course:", error);
+      res.status(500).json({ error: "Failed to delete course" });
     }
   });
 
   // Tournaments API routes
-  app.get('/api/tournaments', async (req, res) => {
+  app.get("/api/tournaments", async (req, res) => {
     try {
       const tournaments = await prisma.tournament.findMany({
         include: { course: { select: { name: true } } },
-        orderBy: { date: 'desc' }
+        orderBy: { date: "desc" },
       });
       res.json(tournaments);
     } catch (error) {
-      console.error('Error fetching tournaments:', error);
-      res.status(500).json({ error: 'Failed to fetch tournaments' });
+      console.error("Error fetching tournaments:", error);
+      res.status(500).json({ error: "Failed to fetch tournaments" });
     }
   });
 
-  app.post('/api/tournaments', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { name, date, courseId, netAllowance, passcode } = req.body;
-      
-      if (!name?.trim() || !date || !courseId) {
-        return res.status(400).json({ error: 'Name, date, and course are required' });
+  app.post(
+    "/api/tournaments",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { name, date, courseId, netAllowance, passcode } = req.body;
+
+        if (!name?.trim() || !date || !courseId) {
+          return res
+            .status(400)
+            .json({ error: "Name, date, and course are required" });
+        }
+
+        const tournament = await prisma.tournament.create({
+          data: {
+            name: name.trim(),
+            date: date,
+            courseId,
+            netAllowance: netAllowance || 100,
+            passcode:
+              passcode ||
+              `${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+          },
+          include: { course: { select: { name: true } } },
+        });
+
+        res.status(201).json(tournament);
+      } catch (error) {
+        console.error("Error creating tournament:", error);
+        res.status(500).json({ error: "Failed to create tournament" });
       }
+    },
+  );
 
-      const tournament = await prisma.tournament.create({
-        data: {
-          name: name.trim(),
-          date: date,
-          courseId,
-          netAllowance: netAllowance || 100,
-          passcode: passcode || `${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-        },
-        include: { course: { select: { name: true } } }
-      });
-      
-      res.status(201).json(tournament);
-    } catch (error) {
-      console.error('Error creating tournament:', error);
-      res.status(500).json({ error: 'Failed to create tournament' });
-    }
-  });
+  app.put(
+    "/api/tournaments/:id",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { name, date, courseId, netAllowance, status } = req.body;
 
-  app.put('/api/tournaments/:id', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, date, courseId, netAllowance, status } = req.body;
-      
-      if (!name?.trim() || !date || !courseId) {
-        return res.status(400).json({ error: 'Name, date, and course are required' });
+        if (!name?.trim() || !date || !courseId) {
+          return res
+            .status(400)
+            .json({ error: "Name, date, and course are required" });
+        }
+
+        const tournament = await prisma.tournament.update({
+          where: { id },
+          data: {
+            name: name.trim(),
+            date: date,
+            courseId,
+            netAllowance: netAllowance || 100,
+          },
+          include: { course: { select: { name: true } } },
+        });
+
+        res.json(tournament);
+      } catch (error) {
+        console.error("Error updating tournament:", error);
+        res.status(500).json({ error: "Failed to update tournament" });
       }
+    },
+  );
 
-      const tournament = await prisma.tournament.update({
-        where: { id },
-        data: {
-          name: name.trim(),
-          date: date,
-          courseId,
-          netAllowance: netAllowance || 100
-        },
-        include: { course: { select: { name: true } } }
-      });
-      
-      res.json(tournament);
-    } catch (error) {
-      console.error('Error updating tournament:', error);
-      res.status(500).json({ error: 'Failed to update tournament' });
-    }
-  });
-
-  app.patch('/api/tournaments/:id', async (req, res) => {
+  app.patch("/api/tournaments/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const { potAmount, participantsForSkins } = req.body;
-      
+
       const tournament = await prisma.tournament.update({
         where: { id },
         data: {
           potAmount: potAmount !== undefined ? potAmount : undefined,
-          participantsForSkins: participantsForSkins !== undefined ? participantsForSkins : undefined
+          participantsForSkins:
+            participantsForSkins !== undefined
+              ? participantsForSkins
+              : undefined,
         },
-        include: { course: { select: { name: true, par: true, slope: true, rating: true } } }
+        include: {
+          course: {
+            select: { name: true, par: true, slope: true, rating: true },
+          },
+        },
       });
-      
+
       res.json(tournament);
     } catch (error) {
-      console.error('Error updating tournament settings:', error);
-      res.status(500).json({ error: 'Failed to update tournament settings' });
+      console.error("Error updating tournament settings:", error);
+      res.status(500).json({ error: "Failed to update tournament settings" });
     }
   });
 
-  app.delete('/api/tournaments/:id', async (req, res) => {
+  app.delete("/api/tournaments/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       await prisma.tournament.delete({
-        where: { id }
+        where: { id },
       });
-      
+
       res.status(204).send();
     } catch (error) {
-      console.error('Error deleting tournament:', error);
-      res.status(500).json({ error: 'Failed to delete tournament' });
+      console.error("Error deleting tournament:", error);
+      res.status(500).json({ error: "Failed to delete tournament" });
     }
   });
 
   // Tournament detail route
-  app.get('/api/tournaments/:id', async (req, res) => {
+  app.get("/api/tournaments/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const tournament = await prisma.tournament.findUnique({
         where: { id },
-        include: { 
-          course: { 
-            select: { name: true, par: true, slope: true, rating: true } 
-          } 
-        }
+        include: {
+          course: {
+            select: { name: true, par: true, slope: true, rating: true },
+          },
+        },
       });
-      
+
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ error: "Tournament not found" });
       }
-      
+
       res.json(tournament);
     } catch (error) {
-      console.error('Error fetching tournament:', error);
-      res.status(500).json({ error: 'Failed to fetch tournament' });
+      console.error("Error fetching tournament:", error);
+      res.status(500).json({ error: "Failed to fetch tournament" });
     }
   });
 
   // Entry routes
-  app.get('/api/tournaments/:id/entries', async (req, res) => {
+  app.get("/api/tournaments/:id/entries", async (req, res) => {
     try {
       const { id } = req.params;
       const entries = await prisma.entry.findMany({
         where: { tournamentId: id },
-        include: { 
-          player: { 
-            select: { id: true, name: true, email: true, handicapIndex: true } 
+        include: {
+          player: {
+            select: { id: true, name: true, email: true, handicapIndex: true },
           },
           group: {
-            select: { id: true, name: true }
-          }
+            select: { id: true, name: true },
+          },
         },
-        orderBy: { player: { name: 'asc' } }
+        orderBy: { player: { name: "asc" } },
       });
-      
+
       res.json(entries);
     } catch (error) {
-      console.error('Error fetching entries:', error);
-      res.status(500).json({ error: 'Failed to fetch entries' });
+      console.error("Error fetching entries:", error);
+      res.status(500).json({ error: "Failed to fetch entries" });
     }
   });
 
-  app.post('/api/tournaments/:id/entries', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { playerId, courseHandicap, playingCH } = req.body;
-      
-      if (!playerId || courseHandicap === undefined || playingCH === undefined) {
-        return res.status(400).json({ error: 'Player ID and handicaps are required' });
-      }
+  app.post(
+    "/api/tournaments/:id/entries",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { playerId, courseHandicap, playingCH } = req.body;
 
-      // Check if player is already entered
-      const existingEntry = await prisma.entry.findUnique({
-        where: {
-          tournamentId_playerId: {
+        if (
+          !playerId ||
+          courseHandicap === undefined ||
+          playingCH === undefined
+        ) {
+          return res
+            .status(400)
+            .json({ error: "Player ID and handicaps are required" });
+        }
+
+        // Check if player is already entered
+        const existingEntry = await prisma.entry.findUnique({
+          where: {
+            tournamentId_playerId: {
+              tournamentId: id,
+              playerId,
+            },
+          },
+        });
+
+        if (existingEntry) {
+          return res
+            .status(400)
+            .json({ error: "Player is already entered in this tournament" });
+        }
+
+        const entry = await prisma.entry.create({
+          data: {
             tournamentId: id,
-            playerId
-          }
-        }
-      });
+            playerId,
+            courseHandicap: Math.round(courseHandicap),
+            playingCH: Math.round(playingCH),
+          },
+          include: {
+            player: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                handicapIndex: true,
+              },
+            },
+          },
+        });
 
-      if (existingEntry) {
-        return res.status(400).json({ error: 'Player is already entered in this tournament' });
+        res.status(201).json(entry);
+      } catch (error) {
+        console.error("Error creating entry:", error);
+        res.status(500).json({ error: "Failed to create entry" });
       }
+    },
+  );
 
-      const entry = await prisma.entry.create({
-        data: {
-          tournamentId: id,
-          playerId,
-          courseHandicap: Math.round(courseHandicap),
-          playingCH: Math.round(playingCH)
-        },
-        include: { 
-          player: { 
-            select: { id: true, name: true, email: true, handicapIndex: true } 
-          }
-        }
-      });
-      
-      res.status(201).json(entry);
-    } catch (error) {
-      console.error('Error creating entry:', error);
-      res.status(500).json({ error: 'Failed to create entry' });
-    }
-  });
+  app.delete(
+    "/api/entries/:id",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
 
-  app.delete('/api/entries/:id', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      await prisma.entry.delete({
-        where: { id }
-      });
-      
-      res.status(204).send();
-    } catch (error) {
-      console.error('Error deleting entry:', error);
-      res.status(500).json({ error: 'Failed to delete entry' });
-    }
-  });
+        await prisma.entry.delete({
+          where: { id },
+        });
 
-  app.put('/api/entries/:id/assign', async (req, res) => {
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error deleting entry:", error);
+        res.status(500).json({ error: "Failed to delete entry" });
+      }
+    },
+  );
+
+  app.put("/api/entries/:id/assign", async (req, res) => {
     try {
       const { id } = req.params;
       const { groupId } = req.body;
-      
+
       const entry = await prisma.entry.update({
         where: { id },
         data: { groupId: groupId || null },
-        include: { 
-          player: { 
-            select: { id: true, name: true, email: true, handicapIndex: true } 
+        include: {
+          player: {
+            select: { id: true, name: true, email: true, handicapIndex: true },
           },
           group: {
-            select: { id: true, name: true }
-          }
-        }
+            select: { id: true, name: true },
+          },
+        },
       });
-      
+
       res.json(entry);
     } catch (error) {
-      console.error('Error assigning entry to group:', error);
-      res.status(500).json({ error: 'Failed to assign entry to group' });
+      console.error("Error assigning entry to group:", error);
+      res.status(500).json({ error: "Failed to assign entry to group" });
     }
   });
 
   // Group routes
-  app.get('/api/tournaments/:id/groups', async (req, res) => {
+  app.get("/api/tournaments/:id/groups", async (req, res) => {
     try {
       const { id } = req.params;
       const groups = await prisma.group.findMany({
@@ -472,234 +529,264 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: {
-                select: { id: true, name: true, email: true, handicapIndex: true }
-              }
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  handicapIndex: true,
+                },
+              },
             },
-            orderBy: { player: { name: 'asc' } }
-          }
+            orderBy: { player: { name: "asc" } },
+          },
         },
-        orderBy: { name: 'asc' }
+        orderBy: { name: "asc" },
       });
-      
+
       res.json(groups);
     } catch (error) {
-      console.error('Error fetching groups:', error);
-      res.status(500).json({ error: 'Failed to fetch groups' });
+      console.error("Error fetching groups:", error);
+      res.status(500).json({ error: "Failed to fetch groups" });
     }
   });
 
-  app.post('/api/groups', checkTournamentNotFinalized, async (req, res) => {
+  app.post("/api/groups", checkTournamentNotFinalized, async (req, res) => {
     try {
       const { tournamentId, name, teeTime } = req.body;
-      
+
       if (!tournamentId || !name?.trim()) {
-        return res.status(400).json({ error: 'Tournament ID and name are required' });
+        return res
+          .status(400)
+          .json({ error: "Tournament ID and name are required" });
       }
 
       const group = await prisma.group.create({
         data: {
           tournamentId,
           name: name.trim(),
-          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null
-        }
+          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null,
+        },
       });
-      
+
       res.status(201).json(group);
     } catch (error) {
-      console.error('Error creating group:', error);
-      res.status(500).json({ error: 'Failed to create group' });
+      console.error("Error creating group:", error);
+      res.status(500).json({ error: "Failed to create group" });
     }
   });
 
-  app.put('/api/groups/:id', checkTournamentNotFinalized, async (req, res) => {
+  app.put("/api/groups/:id", checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, teeTime } = req.body;
-      
+
       if (!name?.trim()) {
-        return res.status(400).json({ error: 'Name is required' });
+        return res.status(400).json({ error: "Name is required" });
       }
 
       const group = await prisma.group.update({
         where: { id },
         data: {
           name: name.trim(),
-          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null
-        }
+          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null,
+        },
       });
-      
+
       res.json(group);
     } catch (error) {
-      console.error('Error updating group:', error);
-      res.status(500).json({ error: 'Failed to update group' });
+      console.error("Error updating group:", error);
+      res.status(500).json({ error: "Failed to update group" });
     }
   });
 
-  app.delete('/api/groups/:id', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Unassign all entries from this group first
-      await prisma.entry.updateMany({
-        where: { groupId: id },
-        data: { groupId: null }
-      });
-      
-      await prisma.group.delete({
-        where: { id }
-      });
-      
-      res.status(204).send();
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      res.status(500).json({ error: 'Failed to delete group' });
-    }
-  });
+  app.delete(
+    "/api/groups/:id",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        // Unassign all entries from this group first
+        await prisma.entry.updateMany({
+          where: { groupId: id },
+          data: { groupId: null },
+        });
+
+        await prisma.group.delete({
+          where: { id },
+        });
+
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error deleting group:", error);
+        res.status(500).json({ error: "Failed to delete group" });
+      }
+    },
+  );
 
   // HoleScores API routes
-  app.post('/api/hole-scores', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { entryId, hole, strokes } = req.body;
-      
-      if (!entryId || !hole || !strokes) {
-        return res.status(400).json({ error: 'entryId, hole, and strokes are required' });
-      }
+  app.post(
+    "/api/hole-scores",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { entryId, hole, strokes } = req.body;
 
-      if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) {
-        return res.status(400).json({ error: 'Invalid hole (1-18) or strokes (1-15)' });
-      }
-
-      // Use upsert to handle Last-Write-Wins
-      const existingScore = await prisma.holeScore.findFirst({
-        where: { entryId, hole: parseInt(hole) }
-      });
-
-      const now = new Date();
-      let wasOverwritten = false;
-
-      if (existingScore) {
-        // Check for conflicts based on timing
-        const clientUpdatedAt = req.body.updatedAt ? new Date(req.body.updatedAt) : now;
-        
-        if (existingScore.updatedAt > clientUpdatedAt) {
-          // Server is newer, reject client update
-          return res.json({
-            strokes: existingScore.strokes,
-            updatedAt: existingScore.updatedAt,
-            wasOverwritten: true
-          });
+        if (!entryId || !hole || !strokes) {
+          return res
+            .status(400)
+            .json({ error: "entryId, hole, and strokes are required" });
         }
-        wasOverwritten = clientUpdatedAt < existingScore.updatedAt;
-      }
 
-      const holeScore = await prisma.holeScore.upsert({
-        where: {
-          entryId_hole: {
-            entryId,
-            hole: parseInt(hole)
+        if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) {
+          return res
+            .status(400)
+            .json({ error: "Invalid hole (1-18) or strokes (1-15)" });
+        }
+
+        // Use upsert to handle Last-Write-Wins
+        const existingScore = await prisma.holeScore.findFirst({
+          where: { entryId, hole: parseInt(hole) },
+        });
+
+        const now = new Date();
+        let wasOverwritten = false;
+
+        if (existingScore) {
+          // Check for conflicts based on timing
+          const clientUpdatedAt = req.body.updatedAt
+            ? new Date(req.body.updatedAt)
+            : now;
+
+          if (existingScore.updatedAt > clientUpdatedAt) {
+            // Server is newer, reject client update
+            return res.json({
+              strokes: existingScore.strokes,
+              updatedAt: existingScore.updatedAt,
+              wasOverwritten: true,
+            });
           }
-        },
-        update: {
-          strokes: parseInt(strokes),
-          updatedAt: now
-        },
-        create: {
-          entryId,
-          hole: parseInt(hole),
-          strokes: parseInt(strokes),
-          updatedAt: now
+          wasOverwritten = clientUpdatedAt < existingScore.updatedAt;
         }
-      });
 
-      res.json({
-        strokes: holeScore.strokes,
-        updatedAt: holeScore.updatedAt,
-        wasOverwritten
-      });
-    } catch (error) {
-      console.error('Error saving hole score:', error);
-      res.status(500).json({ error: 'Failed to save hole score' });
-    }
-  });
+        const holeScore = await prisma.holeScore.upsert({
+          where: {
+            entryId_hole: {
+              entryId,
+              hole: parseInt(hole),
+            },
+          },
+          update: {
+            strokes: parseInt(strokes),
+            updatedAt: now,
+          },
+          create: {
+            entryId,
+            hole: parseInt(hole),
+            strokes: parseInt(strokes),
+            updatedAt: now,
+          },
+        });
 
-  app.post('/api/hole-scores/batch', checkTournamentNotFinalized, async (req, res) => {
-    try {
-      const { scores } = req.body; // Array of {entryId, hole, strokes, updatedAt}
-      
-      if (!Array.isArray(scores)) {
-        return res.status(400).json({ error: 'scores must be an array' });
+        res.json({
+          strokes: holeScore.strokes,
+          updatedAt: holeScore.updatedAt,
+          wasOverwritten,
+        });
+      } catch (error) {
+        console.error("Error saving hole score:", error);
+        res.status(500).json({ error: "Failed to save hole score" });
       }
+    },
+  );
 
-      const results = [];
-      
-      for (const score of scores) {
-        const { entryId, hole, strokes } = score;
-        
-        if (!entryId || !hole || !strokes) continue;
-        if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) continue;
+  app.post(
+    "/api/hole-scores/batch",
+    checkTournamentNotFinalized,
+    async (req, res) => {
+      try {
+        const { scores } = req.body; // Array of {entryId, hole, strokes, updatedAt}
 
-        try {
-          const existingScore = await prisma.holeScore.findFirst({
-            where: { entryId, hole: parseInt(hole) }
-          });
+        if (!Array.isArray(scores)) {
+          return res.status(400).json({ error: "scores must be an array" });
+        }
 
-          const now = new Date();
-          const clientUpdatedAt = score.updatedAt ? new Date(score.updatedAt) : now;
-          let wasOverwritten = false;
+        const results = [];
 
-          if (existingScore && existingScore.updatedAt > clientUpdatedAt) {
+        for (const score of scores) {
+          const { entryId, hole, strokes } = score;
+
+          if (!entryId || !hole || !strokes) continue;
+          if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) continue;
+
+          try {
+            const existingScore = await prisma.holeScore.findFirst({
+              where: { entryId, hole: parseInt(hole) },
+            });
+
+            const now = new Date();
+            const clientUpdatedAt = score.updatedAt
+              ? new Date(score.updatedAt)
+              : now;
+            let wasOverwritten = false;
+
+            if (existingScore && existingScore.updatedAt > clientUpdatedAt) {
+              results.push({
+                entryId,
+                hole: parseInt(hole),
+                strokes: existingScore.strokes,
+                updatedAt: existingScore.updatedAt,
+                wasOverwritten: true,
+              });
+              continue;
+            }
+
+            const holeScore = await prisma.holeScore.upsert({
+              where: {
+                entryId_hole: {
+                  entryId,
+                  hole: parseInt(hole),
+                },
+              },
+              update: {
+                strokes: parseInt(strokes),
+                updatedAt: now,
+              },
+              create: {
+                entryId,
+                hole: parseInt(hole),
+                strokes: parseInt(strokes),
+                updatedAt: now,
+              },
+            });
+
             results.push({
               entryId,
               hole: parseInt(hole),
-              strokes: existingScore.strokes,
-              updatedAt: existingScore.updatedAt,
-              wasOverwritten: true
+              strokes: holeScore.strokes,
+              updatedAt: holeScore.updatedAt,
+              wasOverwritten,
             });
-            continue;
+          } catch (err) {
+            console.error(
+              `Error processing score for entry ${entryId} hole ${hole}:`,
+              err,
+            );
           }
-
-          const holeScore = await prisma.holeScore.upsert({
-            where: {
-              entryId_hole: {
-                entryId,
-                hole: parseInt(hole)
-              }
-            },
-            update: {
-              strokes: parseInt(strokes),
-              updatedAt: now
-            },
-            create: {
-              entryId,
-              hole: parseInt(hole),
-              strokes: parseInt(strokes),
-              updatedAt: now
-            }
-          });
-
-          results.push({
-            entryId,
-            hole: parseInt(hole),
-            strokes: holeScore.strokes,
-            updatedAt: holeScore.updatedAt,
-            wasOverwritten
-          });
-        } catch (err) {
-          console.error(`Error processing score for entry ${entryId} hole ${hole}:`, err);
         }
+
+        res.json({ results });
+      } catch (error) {
+        console.error("Error batch saving hole scores:", error);
+        res.status(500).json({ error: "Failed to batch save hole scores" });
       }
+    },
+  );
 
-      res.json({ results });
-    } catch (error) {
-      console.error('Error batch saving hole scores:', error);
-      res.status(500).json({ error: 'Failed to batch save hole scores' });
-    }
-  });
-
-  app.get('/api/tournaments/:id/leaderboards', async (req, res) => {
+  app.get("/api/tournaments/:id/leaderboards", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       const tournament = await prisma.tournament.findUnique({
         where: { id },
         include: {
@@ -707,38 +794,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: true,
-              holeScores: true
-            }
-          }
-        }
+              holeScores: true,
+            },
+          },
+        },
       });
 
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ error: "Tournament not found" });
       }
 
       // Generate hole pars array (simplified - assume par 4 for all holes)
       const holePars = Array(18).fill(4);
-      
+
       // Calculate leaderboards using scoring utility
-      const leaderboards = calculateLeaderboards(tournament.entries, tournament.course.par);
+      const leaderboards = calculateLeaderboards(
+        tournament.entries,
+        tournament.course.par,
+      );
 
       res.json({
         gross: leaderboards.gross,
         net: leaderboards.net,
         coursePar: tournament.course.par,
-        updated: new Date()
+        updated: new Date(),
       });
     } catch (error) {
-      console.error('Error fetching leaderboards:', error);
-      res.status(500).json({ error: 'Failed to fetch leaderboards' });
+      console.error("Error fetching leaderboards:", error);
+      res.status(500).json({ error: "Failed to fetch leaderboards" });
     }
   });
 
-  app.get('/api/tournaments/:id/skins', async (req, res) => {
+  app.get("/api/tournaments/:id/skins", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       const tournament = await prisma.tournament.findUnique({
         where: { id },
         include: {
@@ -746,29 +836,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: true,
-              holeScores: true
-            }
-          }
-        }
+              holeScores: true,
+            },
+          },
+        },
       });
 
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ error: "Tournament not found" });
       }
 
       // Generate hole pars array (simplified)
       const holePars = Array(18).fill(4);
-      
+
       // Calculate skins
-      const skinsData = calculateGrossSkins(tournament.entries, tournament.course.par, holePars);
-      
+      const skinsData = calculateGrossSkins(
+        tournament.entries,
+        tournament.course.par,
+        holePars,
+      );
+
       // Calculate payouts if pot amount is set
       let leaderboard = skinsData.leaderboard;
       if (tournament.potAmount && tournament.participantsForSkins) {
         leaderboard = calculateSkinsPayouts(
-          skinsData.leaderboard, 
-          tournament.potAmount, 
-          skinsData.totalSkins
+          skinsData.leaderboard,
+          tournament.potAmount,
+          skinsData.totalSkins,
         );
       }
 
@@ -778,103 +872,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalSkins: skinsData.totalSkins,
         potAmount: tournament.potAmount,
         participantsForSkins: tournament.participantsForSkins,
-        payoutPerSkin: tournament.potAmount && skinsData.totalSkins > 0 
-          ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) / 100 
-          : 0
+        payoutPerSkin:
+          tournament.potAmount && skinsData.totalSkins > 0
+            ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) /
+              100
+            : 0,
       });
     } catch (error) {
-      console.error('Error fetching skins:', error);
-      res.status(500).json({ error: 'Failed to fetch skins' });
+      console.error("Error fetching skins:", error);
+      res.status(500).json({ error: "Failed to fetch skins" });
     }
   });
 
-  app.get('/api/tournaments/:id/scores/:groupId', async (req, res) => {
+  app.get("/api/tournaments/:id/scores/:groupId", async (req, res) => {
     try {
       const { id, groupId } = req.params;
-      
+
       const group = await prisma.group.findUnique({
         where: { id: groupId },
         include: {
           tournament: {
-            include: { course: true }
+            include: { course: true },
           },
           entries: {
             include: {
               player: true,
-              holeScores: true
-            }
-          }
-        }
+              holeScores: true,
+            },
+          },
+        },
       });
 
       if (!group || group.tournamentId !== id) {
-        return res.status(404).json({ error: 'Group not found in tournament' });
+        return res.status(404).json({ error: "Group not found in tournament" });
       }
 
       res.json({
         group: {
           id: group.id,
           name: group.name,
-          teeTime: group.teeTime
+          teeTime: group.teeTime,
         },
         tournament: {
           id: group.tournament.id,
           name: group.tournament.name,
           course: {
             name: group.tournament.course.name,
-            par: group.tournament.course.par
-          }
+            par: group.tournament.course.par,
+          },
         },
-        entries: group.entries.map(entry => ({
+        entries: group.entries.map((entry) => ({
           id: entry.id,
           player: entry.player,
           courseHandicap: entry.courseHandicap,
           playingCH: entry.playingCH,
-          holeScores: entry.holeScores.reduce((acc, score) => {
-            acc[score.hole] = score.strokes;
-            return acc;
-          }, {} as { [hole: number]: number })
-        }))
+          holeScores: entry.holeScores.reduce(
+            (acc, score) => {
+              acc[score.hole] = score.strokes;
+              return acc;
+            },
+            {} as { [hole: number]: number },
+          ),
+        })),
       });
     } catch (error) {
-      console.error('Error fetching group scores:', error);
-      res.status(500).json({ error: 'Failed to fetch group scores' });
+      console.error("Error fetching group scores:", error);
+      res.status(500).json({ error: "Failed to fetch group scores" });
     }
   });
 
   // Get scores for a specific group (for refetch after conflicts)
-  app.get('/api/groups/:groupId/scores', async (req, res) => {
+  app.get("/api/groups/:groupId/scores", async (req, res) => {
     try {
       const { groupId } = req.params;
-      
+
       const group = await prisma.group.findUnique({
         where: { id: groupId },
         include: {
           entries: {
             include: {
-              holeScores: true
-            }
-          }
-        }
+              holeScores: true,
+            },
+          },
+        },
       });
 
       if (!group) {
-        return res.status(404).json({ error: 'Group not found' });
+        return res.status(404).json({ error: "Group not found" });
       }
 
       // Return scores in the format expected by client
       const scores: { [entryId: string]: { [hole: number]: number } } = {};
-      group.entries.forEach(entry => {
-        scores[entry.id] = entry.holeScores.reduce((acc, score) => {
-          acc[score.hole] = score.strokes;
-          return acc;
-        }, {} as { [hole: number]: number });
+      group.entries.forEach((entry) => {
+        scores[entry.id] = entry.holeScores.reduce(
+          (acc, score) => {
+            acc[score.hole] = score.strokes;
+            return acc;
+          },
+          {} as { [hole: number]: number },
+        );
       });
 
       res.json({ scores });
     } catch (error) {
-      console.error('Error fetching group scores:', error);
-      res.status(500).json({ error: 'Failed to fetch group scores' });
+      console.error("Error fetching group scores:", error);
+      res.status(500).json({ error: "Failed to fetch group scores" });
     }
   });
 
@@ -887,10 +989,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entries: {
           include: {
             player: true,
-            holeScores: true
-          }
-        }
-      }
+            holeScores: true,
+          },
+        },
+      },
     });
 
     if (!tournament) {
@@ -899,20 +1001,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Generate hole pars array (simplified - assume par 4 for all holes)
     const holePars = Array(18).fill(4);
-    
+
     // Calculate leaderboards using scoring utility
-    const leaderboards = calculateLeaderboards(tournament.entries, tournament.course.par);
-    
+    const leaderboards = calculateLeaderboards(
+      tournament.entries,
+      tournament.course.par,
+    );
+
     // Calculate skins
-    const skinsData = calculateGrossSkins(tournament.entries, tournament.course.par, holePars);
-    
+    const skinsData = calculateGrossSkins(
+      tournament.entries,
+      tournament.course.par,
+      holePars,
+    );
+
     // Calculate payouts if pot amount is set
     let skinsLeaderboard = skinsData.leaderboard;
     if (tournament.potAmount && tournament.participantsForSkins) {
       skinsLeaderboard = calculateSkinsPayouts(
-        skinsData.leaderboard, 
-        tournament.potAmount, 
-        skinsData.totalSkins
+        skinsData.leaderboard,
+        tournament.potAmount,
+        skinsData.totalSkins,
       );
     }
 
@@ -923,8 +1032,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         date: tournament.date,
         course: {
           name: tournament.course.name,
-          par: tournament.course.par
-        }
+          par: tournament.course.par,
+        },
       },
       gross: leaderboards.gross,
       net: leaderboards.net,
@@ -933,32 +1042,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         leaderboard: skinsLeaderboard,
         totalSkins: skinsData.totalSkins,
         potAmount: tournament.potAmount,
-        payoutPerSkin: tournament.potAmount && skinsData.totalSkins > 0 
-          ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) / 100 
-          : 0
+        payoutPerSkin:
+          tournament.potAmount && skinsData.totalSkins > 0
+            ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) /
+              100
+            : 0,
       },
       coursePar: tournament.course.par,
-      updated: new Date()
+      updated: new Date(),
     };
   }
 
   // Public results API with cache
-  app.get('/api/public/:token/results', async (req, res) => {
+  app.get("/api/public/:token/results", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       if (!token || token.length !== 12) {
-        return res.status(400).json({ error: 'Invalid share token format' });
+        return res.status(400).json({ error: "Invalid share token format" });
       }
 
       // Find tournament by share token
       const tournament = await prisma.tournament.findUnique({
         where: { shareToken: token },
-        select: { id: true }
+        select: { id: true },
       });
 
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ error: "Tournament not found" });
       }
 
       // Check cache first
@@ -968,9 +1079,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!results) {
         // Cache miss - compute results
         results = await computeResults(tournament.id);
-        
+
         if (!results) {
-          return res.status(404).json({ error: 'Tournament not found' });
+          return res.status(404).json({ error: "Tournament not found" });
         }
 
         // Cache the results
@@ -979,24 +1090,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(results);
     } catch (error) {
-      console.error('Error fetching public results:', error);
-      res.status(500).json({ error: 'Failed to fetch results' });
+      console.error("Error fetching public results:", error);
+      res.status(500).json({ error: "Failed to fetch results" });
     }
   });
 
   // Generate or regenerate share token for tournament
-  app.post('/api/tournaments/:id/share-token', async (req, res) => {
+  app.post("/api/tournaments/:id/share-token", async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       // Verify tournament exists
       const tournament = await prisma.tournament.findUnique({
         where: { id },
-        select: { id: true, shareToken: true }
+        select: { id: true, shareToken: true },
       });
 
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ error: "Tournament not found" });
       }
 
       // Generate new unique token
@@ -1007,11 +1118,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       while (!isUnique && attempts < maxAttempts) {
         newToken = makeShareToken(12);
-        
+
         const existing = await prisma.tournament.findUnique({
-          where: { shareToken: newToken }
+          where: { shareToken: newToken },
         });
-        
+
         if (!existing) {
           isUnique = true;
         }
@@ -1019,14 +1130,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (!isUnique) {
-        return res.status(500).json({ error: 'Failed to generate unique token' });
+        return res
+          .status(500)
+          .json({ error: "Failed to generate unique token" });
       }
 
       // Update tournament with new token
       const updatedTournament = await prisma.tournament.update({
         where: { id },
         data: { shareToken: newToken! },
-        select: { shareToken: true }
+        select: { shareToken: true },
       });
 
       // Clear cache for this tournament since we're regenerating the token
@@ -1034,8 +1147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ shareToken: updatedTournament.shareToken });
     } catch (error) {
-      console.error('Error generating share token:', error);
-      res.status(500).json({ error: 'Failed to generate share token' });
+      console.error("Error generating share token:", error);
+      res.status(500).json({ error: "Failed to generate share token" });
     }
   });
 
@@ -1057,7 +1170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     resolved?: boolean;
     resolvedAt?: Date;
   }
-  
+
   const conflictBuffer: ConflictEntry[] = [];
 
   async function addConflict(conflict: {
@@ -1075,8 +1188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         include: {
           player: { select: { name: true } },
           tournament: { select: { id: true, name: true } },
-          group: { select: { id: true, name: true } }
-        }
+          group: { select: { id: true, name: true } },
+        },
       });
 
       if (entry) {
@@ -1093,7 +1206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           incomingAt: conflict.incomingAt,
           storedStrokes: conflict.storedStrokes,
           storedAt: conflict.storedAt,
-          resolved: false
+          resolved: false,
         };
 
         conflictBuffer.push(enrichedConflict);
@@ -1102,404 +1215,470 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
     } catch (error) {
-      console.error('Error enriching conflict:', error);
+      console.error("Error enriching conflict:", error);
       // Fallback: store basic conflict
       conflictBuffer.push({
         id: `${conflict.entryId}-${conflict.hole}-${Date.now()}`,
-        tournamentId: 'unknown',
-        tournamentName: 'Unknown Tournament',
+        tournamentId: "unknown",
+        tournamentName: "Unknown Tournament",
         entryId: conflict.entryId,
-        playerName: 'Unknown Player',
+        playerName: "Unknown Player",
         hole: conflict.hole,
         incomingStrokes: conflict.incomingStrokes,
         incomingAt: conflict.incomingAt,
         storedStrokes: conflict.storedStrokes,
         storedAt: conflict.storedAt,
-        resolved: false
+        resolved: false,
       });
     }
   }
 
   // Auth middleware for admin conflicts endpoints
   async function validateAdminAccess(req: any, res: any, next: any) {
-    const tournamentId = req.headers['x-tournament-id'] as string;
-    const passcode = req.headers['x-admin-passcode'] as string;
+    const tournamentId = req.headers["x-tournament-id"] as string;
+    const passcode = req.headers["x-admin-passcode"] as string;
 
     if (!tournamentId || !passcode) {
-      return res.status(401).json({ error: 'Missing x-tournament-id or x-admin-passcode headers' });
+      return res
+        .status(401)
+        .json({ error: "Missing x-tournament-id or x-admin-passcode headers" });
     }
 
     try {
       const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { passcode: true }
+        select: { passcode: true },
       });
 
       if (!tournament || tournament.passcode !== passcode) {
-        return res.status(401).json({ error: 'Invalid tournament ID or passcode' });
+        return res
+          .status(401)
+          .json({ error: "Invalid tournament ID or passcode" });
       }
 
       (req as any).validatedTournamentId = tournamentId;
       next();
     } catch (error) {
-      console.error('Error validating admin access:', error);
-      res.status(500).json({ error: 'Authentication failed' });
+      console.error("Error validating admin access:", error);
+      res.status(500).json({ error: "Authentication failed" });
     }
   }
 
   // Single score endpoint with Last-Write-Wins
-  app.post('/api/scores', async (req, res) => {
+  app.post("/api/scores", checkTournamentNotFinalized, async (req, res) => {
     try {
-      const { entryId, hole, strokes, clientUpdatedAt } = req.body;
-      
-      if (!entryId || !hole || strokes === undefined || !clientUpdatedAt) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      const { entryId, hole, strokes, clientUpdatedAt } = req.body ?? {};
+
+      // 1) Coerce + validate
+      const holeNum = Number(hole);
+      const strokeNum = Number(strokes);
+      const ts = new Date(clientUpdatedAt);
+
+      if (
+        !entryId ||
+        !Number.isInteger(holeNum) ||
+        holeNum < 1 ||
+        holeNum > 18 ||
+        !Number.isFinite(strokeNum) ||
+        strokeNum < 1 ||
+        Number.isNaN(ts.getTime())
+      ) {
+        return res.status(400).json({ error: "Missing or invalid fields" });
       }
 
-      const incomingTimestamp = new Date(clientUpdatedAt);
-      const now = new Date();
+      // (Optional safety) Ensure entry exists and tournament not final here as well
+      // in case your checkTournamentNotFinalized middleware relies on headers.
+      // If your middleware already covers this by entryId, you can remove this block.
+      const entry = await prisma.entry.findUnique({
+        where: { id: entryId },
+        select: {
+          tournamentId: true,
+          tournament: { select: { isFinal: true } },
+        },
+      });
+      if (!entry) return res.status(404).json({ error: "entry_not_found" });
+      if (entry.tournament?.isFinal)
+        return res.status(403).json({ error: "tournament_finalized" });
 
-      // Check if there's an existing score for this entry/hole
-      const existingScore = await prisma.holeScore.findUnique({
-        where: {
-          entryId_hole: {
-            entryId,
-            hole: parseInt(hole)
-          }
-        }
+      // 2) Fetch existing
+      const existing = await prisma.holeScore.findUnique({
+        where: { entryId_hole: { entryId, hole: holeNum } },
       });
 
-      // Last-Write-Wins: compare timestamps
-      if (existingScore && existingScore.clientUpdatedAt && existingScore.clientUpdatedAt > incomingTimestamp) {
-        // Incoming score is stale, ignore it and log conflict
+      // 3) LWW check — use >= for idempotency on equal timestamps
+      if (
+        existing &&
+        existing.clientUpdatedAt &&
+        existing.clientUpdatedAt >= ts
+      ) {
+        // log conflict (your helper)
         await addConflict({
           entryId,
-          hole: parseInt(hole),
-          incomingStrokes: parseInt(strokes),
-          incomingAt: incomingTimestamp,
-          storedStrokes: existingScore.strokes,
-          storedAt: existingScore.clientUpdatedAt
+          hole: holeNum,
+          incomingStrokes: strokeNum,
+          incomingAt: ts,
+          storedStrokes: existing.strokes,
+          storedAt: existing.clientUpdatedAt,
         });
 
-        console.log(`Score ignored (stale): entry ${entryId}, hole ${hole}, incoming: ${strokes}@${incomingTimestamp}, stored: ${existingScore.strokes}@${existingScore.clientUpdatedAt}`);
-        
-        return res.json({ 
-          status: 'ignored', 
-          reason: 'stale',
+        console.log(
+          `Score ignored (stale): entry ${entryId}, hole ${holeNum}, incoming: ${strokeNum}@${ts.toISOString()}, stored: ${existing.strokes}@${existing.clientUpdatedAt.toISOString()}`,
+        );
+
+        return res.json({
+          status: "ignored",
+          reason: "stale",
           storedScore: {
-            strokes: existingScore.strokes,
-            updatedAt: existingScore.clientUpdatedAt
-          }
+            strokes: existing.strokes,
+            clientUpdatedAt: existing.clientUpdatedAt, // ✅ correct field name
+          },
         });
       }
 
-      // Accept the score (either new or newer)
-      const holeScore = await prisma.holeScore.upsert({
-        where: {
-          entryId_hole: {
-            entryId,
-            hole: parseInt(hole)
-          }
-        },
-        update: {
-          strokes: parseInt(strokes),
-          clientUpdatedAt: incomingTimestamp,
-          updatedAt: now
-        },
+      // 4) Upsert the newer value
+      const saved = await prisma.holeScore.upsert({
+        where: { entryId_hole: { entryId, hole: holeNum } },
+        update: { strokes: strokeNum, clientUpdatedAt: ts }, // let @updatedAt handle updatedAt
         create: {
           entryId,
-          hole: parseInt(hole),
-          strokes: parseInt(strokes),
-          clientUpdatedAt: incomingTimestamp,
-          updatedAt: now
-        }
+          hole: holeNum,
+          strokes: strokeNum,
+          clientUpdatedAt: ts,
+        },
       });
 
-      console.log(`Score accepted: entry ${entryId}, hole ${hole}, strokes: ${strokes}`);
-      
-      res.json({ 
-        status: 'accepted',
+      console.log(
+        `Score accepted: entry ${entryId}, hole ${holeNum}, strokes: ${strokeNum}`,
+      );
+
+      return res.json({
+        status: "accepted",
         score: {
-          strokes: holeScore.strokes,
-          clientUpdatedAt: holeScore.clientUpdatedAt,
-          updatedAt: holeScore.updatedAt
-        }
+          strokes: saved.strokes,
+          clientUpdatedAt: saved.clientUpdatedAt,
+          updatedAt: saved.updatedAt, // from Prisma @updatedAt
+        },
       });
-
     } catch (error) {
-      console.error('Error saving score:', error);
-      res.status(500).json({ error: 'Failed to save score' });
+      console.error("Error saving score:", error);
+      return res.status(500).json({ error: "Failed to save score" });
     }
   });
 
   // Get recent conflicts for admin review
   // Admin Conflicts Review API - Protected by tournament passcode
-  app.get('/api/admin/conflicts/recent', validateAdminAccess, async (req, res) => {
-    try {
-      const { tournamentId } = req.query;
-      const validatedTournamentId = (req as any).validatedTournamentId;
-      
-      // Filter conflicts by tournament ID if provided
-      let conflicts = conflictBuffer;
-      if (tournamentId && tournamentId === validatedTournamentId) {
-        conflicts = conflictBuffer.filter(c => c.tournamentId === tournamentId);
-      } else if (validatedTournamentId) {
-        conflicts = conflictBuffer.filter(c => c.tournamentId === validatedTournamentId);
-      }
-      
-      // Return newest first, limit to 200
-      const recentConflicts = conflicts
-        .filter(c => !c.resolved)
-        .sort((a, b) => b.incomingAt.getTime() - a.incomingAt.getTime())
-        .slice(0, 200);
-      
-      res.json({ conflicts: recentConflicts });
-    } catch (error) {
-      console.error('Error fetching conflicts:', error);
-      res.status(500).json({ error: 'Failed to fetch conflicts' });
-    }
-  });
+  app.get(
+    "/api/admin/conflicts/recent",
+    validateAdminAccess,
+    async (req, res) => {
+      try {
+        const { tournamentId } = req.query;
+        const validatedTournamentId = (req as any).validatedTournamentId;
 
-  app.post('/api/admin/conflicts/resolve', validateAdminAccess, async (req, res) => {
-    try {
-      const { tournamentId, entryId, hole, action, forceValue } = req.body;
-      const validatedTournamentId = (req as any).validatedTournamentId;
-      
-      if (tournamentId !== validatedTournamentId) {
-        return res.status(403).json({ error: 'Tournament ID mismatch' });
-      }
-      
-      if (!entryId || !hole || !action) {
-        return res.status(400).json({ error: 'Missing required fields: entryId, hole, action' });
-      }
-      
-      if (!['apply-server', 'force-local'].includes(action)) {
-        return res.status(400).json({ error: 'Invalid action. Must be apply-server or force-local' });
-      }
-      
-      // Find and mark the conflict as resolved
-      const conflictIndex = conflictBuffer.findIndex(c => 
-        c.entryId === entryId && 
-        c.hole === hole && 
-        c.tournamentId === tournamentId &&
-        !c.resolved
-      );
-      
-      if (conflictIndex >= 0) {
-        conflictBuffer[conflictIndex].resolved = true;
-        conflictBuffer[conflictIndex].resolvedAt = new Date();
-      }
-      
-      if (action === 'force-local') {
-        const conflict = conflictBuffer[conflictIndex];
-        const strokesToForce = forceValue !== undefined ? forceValue : conflict?.incomingStrokes;
-        
-        if (strokesToForce === undefined) {
-          return res.status(400).json({ error: 'forceValue required for force-local action when conflict not found' });
+        // Filter conflicts by tournament ID if provided
+        let conflicts = conflictBuffer;
+        if (tournamentId && tournamentId === validatedTournamentId) {
+          conflicts = conflictBuffer.filter(
+            (c) => c.tournamentId === tournamentId,
+          );
+        } else if (validatedTournamentId) {
+          conflicts = conflictBuffer.filter(
+            (c) => c.tournamentId === validatedTournamentId,
+          );
         }
-        
-        // Force the local value by creating a new score with timestamp ahead of current
-        const forceTimestamp = new Date(Date.now() + 1);
-        
-        await prisma.holeScore.upsert({
-          where: {
-            entryId_hole: {
+
+        // Return newest first, limit to 200
+        const recentConflicts = conflicts
+          .filter((c) => !c.resolved)
+          .sort((a, b) => b.incomingAt.getTime() - a.incomingAt.getTime())
+          .slice(0, 200);
+
+        res.json({ conflicts: recentConflicts });
+      } catch (error) {
+        console.error("Error fetching conflicts:", error);
+        res.status(500).json({ error: "Failed to fetch conflicts" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/admin/conflicts/resolve",
+    validateAdminAccess,
+    async (req, res) => {
+      try {
+        const { tournamentId, entryId, hole, action, forceValue } = req.body;
+        const validatedTournamentId = (req as any).validatedTournamentId;
+
+        if (tournamentId !== validatedTournamentId) {
+          return res.status(403).json({ error: "Tournament ID mismatch" });
+        }
+
+        if (!entryId || !hole || !action) {
+          return res
+            .status(400)
+            .json({ error: "Missing required fields: entryId, hole, action" });
+        }
+
+        if (!["apply-server", "force-local"].includes(action)) {
+          return res.status(400).json({
+            error: "Invalid action. Must be apply-server or force-local",
+          });
+        }
+
+        // Find and mark the conflict as resolved
+        const conflictIndex = conflictBuffer.findIndex(
+          (c) =>
+            c.entryId === entryId &&
+            c.hole === hole &&
+            c.tournamentId === tournamentId &&
+            !c.resolved,
+        );
+
+        if (conflictIndex >= 0) {
+          conflictBuffer[conflictIndex].resolved = true;
+          conflictBuffer[conflictIndex].resolvedAt = new Date();
+        }
+
+        if (action === "force-local") {
+          const conflict = conflictBuffer[conflictIndex];
+          const strokesToForce =
+            forceValue !== undefined ? forceValue : conflict?.incomingStrokes;
+
+          if (strokesToForce === undefined) {
+            return res.status(400).json({
+              error:
+                "forceValue required for force-local action when conflict not found",
+            });
+          }
+
+          // Force the local value by creating a new score with timestamp ahead of current
+          const forceTimestamp = new Date(Date.now() + 1);
+
+          await prisma.holeScore.upsert({
+            where: {
+              entryId_hole: {
+                entryId,
+                hole: parseInt(hole),
+              },
+            },
+            update: {
+              strokes: strokesToForce,
+              clientUpdatedAt: forceTimestamp,
+              updatedAt: new Date(),
+            },
+            create: {
               entryId,
-              hole: parseInt(hole)
-            }
-          },
-          update: {
-            strokes: strokesToForce,
-            clientUpdatedAt: forceTimestamp,
-            updatedAt: new Date()
-          },
-          create: {
-            entryId,
-            hole: parseInt(hole),
-            strokes: strokesToForce,
-            clientUpdatedAt: forceTimestamp,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        });
-        
-        console.log(`Forced local value: entry ${entryId}, hole ${hole}, strokes ${strokesToForce}, timestamp ${forceTimestamp}`);
-      }
-      
-      res.json({ 
-        success: true, 
-        action,
-        resolved: conflictIndex >= 0,
-        ...(action === 'force-local' && { forcedValue: forceValue !== undefined ? forceValue : conflictBuffer[conflictIndex]?.incomingStrokes })
-      });
-    } catch (error) {
-      console.error('Error resolving conflict:', error);
-      res.status(500).json({ error: 'Failed to resolve conflict' });
-    }
-  });
+              hole: parseInt(hole),
+              strokes: strokesToForce,
+              clientUpdatedAt: forceTimestamp,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
 
-  app.delete('/api/admin/conflicts/clear', validateAdminAccess, async (req, res) => {
-    try {
-      const { tournamentId } = req.query;
-      const validatedTournamentId = (req as any).validatedTournamentId;
-      
-      if (tournamentId && tournamentId !== validatedTournamentId) {
-        return res.status(403).json({ error: 'Tournament ID mismatch' });
+          console.log(
+            `Forced local value: entry ${entryId}, hole ${hole}, strokes ${strokesToForce}, timestamp ${forceTimestamp}`,
+          );
+        }
+
+        res.json({
+          success: true,
+          action,
+          resolved: conflictIndex >= 0,
+          ...(action === "force-local" && {
+            forcedValue:
+              forceValue !== undefined
+                ? forceValue
+                : conflictBuffer[conflictIndex]?.incomingStrokes,
+          }),
+        });
+      } catch (error) {
+        console.error("Error resolving conflict:", error);
+        res.status(500).json({ error: "Failed to resolve conflict" });
       }
-      
-      let clearedCount = 0;
-      if (tournamentId === validatedTournamentId) {
-        // Clear conflicts for specific tournament
-        const originalLength = conflictBuffer.length;
-        for (let i = conflictBuffer.length - 1; i >= 0; i--) {
-          if (conflictBuffer[i].tournamentId === tournamentId) {
-            conflictBuffer.splice(i, 1);
-            clearedCount++;
+    },
+  );
+
+  app.delete(
+    "/api/admin/conflicts/clear",
+    validateAdminAccess,
+    async (req, res) => {
+      try {
+        const { tournamentId } = req.query;
+        const validatedTournamentId = (req as any).validatedTournamentId;
+
+        if (tournamentId && tournamentId !== validatedTournamentId) {
+          return res.status(403).json({ error: "Tournament ID mismatch" });
+        }
+
+        let clearedCount = 0;
+        if (tournamentId === validatedTournamentId) {
+          // Clear conflicts for specific tournament
+          const originalLength = conflictBuffer.length;
+          for (let i = conflictBuffer.length - 1; i >= 0; i--) {
+            if (conflictBuffer[i].tournamentId === tournamentId) {
+              conflictBuffer.splice(i, 1);
+              clearedCount++;
+            }
+          }
+        } else {
+          // Clear all conflicts for validated tournament
+          const originalLength = conflictBuffer.length;
+          for (let i = conflictBuffer.length - 1; i >= 0; i--) {
+            if (conflictBuffer[i].tournamentId === validatedTournamentId) {
+              conflictBuffer.splice(i, 1);
+              clearedCount++;
+            }
           }
         }
-      } else {
-        // Clear all conflicts for validated tournament
-        const originalLength = conflictBuffer.length;
-        for (let i = conflictBuffer.length - 1; i >= 0; i--) {
-          if (conflictBuffer[i].tournamentId === validatedTournamentId) {
-            conflictBuffer.splice(i, 1);
-            clearedCount++;
-          }
-        }
+
+        res.json({ success: true, clearedCount });
+      } catch (error) {
+        console.error("Error clearing conflicts:", error);
+        res.status(500).json({ error: "Failed to clear conflicts" });
       }
-      
-      res.json({ success: true, clearedCount });
-    } catch (error) {
-      console.error('Error clearing conflicts:', error);
-      res.status(500).json({ error: 'Failed to clear conflicts' });
-    }
-  });
+    },
+  );
 
   // Admin endpoints for tournament finalization
-  app.post('/api/admin/tournaments/:id/finalize', requireAdminAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Verify admin passcode
-      const tournament = await prisma.tournament.findUnique({
-        where: { id },
-        select: { passcode: true, isFinal: true, name: true }
-      });
+  app.post(
+    "/api/admin/tournaments/:id/finalize",
+    requireAdminAuth,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
 
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
-      }
-
-      if (req.adminPasscode !== tournament.passcode) {
-        return res.status(403).json({ error: 'Invalid admin passcode' });
-      }
-
-      if (tournament.isFinal) {
-        return res.status(400).json({ error: 'Tournament is already finalized' });
-      }
-
-      // Finalize tournament and create audit log
-      const now = new Date();
-      await prisma.$transaction([
-        prisma.tournament.update({
+        // Verify admin passcode
+        const tournament = await prisma.tournament.findUnique({
           where: { id },
-          data: {
-            isFinal: true,
-            finalizedAt: now
-          }
-        }),
-        prisma.auditEvent.create({
-          data: {
-            tournamentId: id,
-            type: 'finalize',
-            message: `Tournament "${tournament.name}" finalized via admin panel`
-          }
-        })
-      ]);
+          select: { passcode: true, isFinal: true, name: true },
+        });
 
-      res.json({ success: true, finalizedAt: now });
-    } catch (error) {
-      console.error('Error finalizing tournament:', error);
-      res.status(500).json({ error: 'Failed to finalize tournament' });
-    }
-  });
+        if (!tournament) {
+          return res.status(404).json({ error: "Tournament not found" });
+        }
 
-  app.post('/api/admin/tournaments/:id/unlock', requireAdminAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Verify admin passcode
-      const tournament = await prisma.tournament.findUnique({
-        where: { id },
-        select: { passcode: true, isFinal: true, name: true }
-      });
+        if (req.adminPasscode !== tournament.passcode) {
+          return res.status(403).json({ error: "Invalid admin passcode" });
+        }
 
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        if (tournament.isFinal) {
+          return res
+            .status(400)
+            .json({ error: "Tournament is already finalized" });
+        }
+
+        // Finalize tournament and create audit log
+        const now = new Date();
+        await prisma.$transaction([
+          prisma.tournament.update({
+            where: { id },
+            data: {
+              isFinal: true,
+              finalizedAt: now,
+            },
+          }),
+          prisma.auditEvent.create({
+            data: {
+              tournamentId: id,
+              type: "finalize",
+              message: `Tournament "${tournament.name}" finalized via admin panel`,
+            },
+          }),
+        ]);
+
+        res.json({ success: true, finalizedAt: now });
+      } catch (error) {
+        console.error("Error finalizing tournament:", error);
+        res.status(500).json({ error: "Failed to finalize tournament" });
       }
+    },
+  );
 
-      if (req.adminPasscode !== tournament.passcode) {
-        return res.status(403).json({ error: 'Invalid admin passcode' });
-      }
+  app.post(
+    "/api/admin/tournaments/:id/unlock",
+    requireAdminAuth,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
 
-      if (!tournament.isFinal) {
-        return res.status(400).json({ error: 'Tournament is not finalized' });
-      }
-
-      // Unlock tournament and create audit log
-      await prisma.$transaction([
-        prisma.tournament.update({
+        // Verify admin passcode
+        const tournament = await prisma.tournament.findUnique({
           where: { id },
-          data: {
-            isFinal: false,
-            finalizedAt: null
-          }
-        }),
-        prisma.auditEvent.create({
-          data: {
-            tournamentId: id,
-            type: 'unlock',
-            message: `Tournament "${tournament.name}" unlocked via admin panel`
-          }
-        })
-      ]);
+          select: { passcode: true, isFinal: true, name: true },
+        });
 
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error unlocking tournament:', error);
-      res.status(500).json({ error: 'Failed to unlock tournament' });
-    }
-  });
+        if (!tournament) {
+          return res.status(404).json({ error: "Tournament not found" });
+        }
 
-  app.get('/api/admin/tournaments/:id/audit', requireAdminAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Verify admin passcode
-      const tournament = await prisma.tournament.findUnique({
-        where: { id },
-        select: { passcode: true }
-      });
+        if (req.adminPasscode !== tournament.passcode) {
+          return res.status(403).json({ error: "Invalid admin passcode" });
+        }
 
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        if (!tournament.isFinal) {
+          return res.status(400).json({ error: "Tournament is not finalized" });
+        }
+
+        // Unlock tournament and create audit log
+        await prisma.$transaction([
+          prisma.tournament.update({
+            where: { id },
+            data: {
+              isFinal: false,
+              finalizedAt: null,
+            },
+          }),
+          prisma.auditEvent.create({
+            data: {
+              tournamentId: id,
+              type: "unlock",
+              message: `Tournament "${tournament.name}" unlocked via admin panel`,
+            },
+          }),
+        ]);
+
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error unlocking tournament:", error);
+        res.status(500).json({ error: "Failed to unlock tournament" });
       }
+    },
+  );
 
-      if (req.adminPasscode !== tournament.passcode) {
-        return res.status(403).json({ error: 'Invalid admin passcode' });
+  app.get(
+    "/api/admin/tournaments/:id/audit",
+    requireAdminAuth,
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        // Verify admin passcode
+        const tournament = await prisma.tournament.findUnique({
+          where: { id },
+          select: { passcode: true },
+        });
+
+        if (!tournament) {
+          return res.status(404).json({ error: "Tournament not found" });
+        }
+
+        if (req.adminPasscode !== tournament.passcode) {
+          return res.status(403).json({ error: "Invalid admin passcode" });
+        }
+
+        const auditEvents = await prisma.auditEvent.findMany({
+          where: { tournamentId: id },
+          orderBy: { createdAt: "desc" },
+        });
+
+        res.json(auditEvents);
+      } catch (error) {
+        console.error("Error fetching audit events:", error);
+        res.status(500).json({ error: "Failed to fetch audit events" });
       }
-
-      const auditEvents = await prisma.auditEvent.findMany({
-        where: { tournamentId: id },
-        orderBy: { createdAt: 'desc' }
-      });
-
-      res.json(auditEvents);
-    } catch (error) {
-      console.error('Error fetching audit events:', error);
-      res.status(500).json({ error: 'Failed to fetch audit events' });
-    }
-  });
+    },
+  );
 
   const httpServer = createServer(app);
   return httpServer;
