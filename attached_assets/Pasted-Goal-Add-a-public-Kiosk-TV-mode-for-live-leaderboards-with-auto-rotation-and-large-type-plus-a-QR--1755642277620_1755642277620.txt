@@ -1,0 +1,47 @@
+Goal: Add a public Kiosk/TV mode for live leaderboards with auto-rotation and large type, plus a QR share. ONE cohesive feature → ONE checkpoint. Keep diffs tight.
+
+Context: Stack is Vite + Express + TS + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa.
+
+Scope
+
+1) Route & activation
+- Add `/public/:token/kiosk` (and support `?kiosk=1` on `/public/:token`).
+- Kiosk mode uses the same results data as the existing public page, but a different presentation.
+
+2) Layout & behavior
+- Fullscreen, large type, mobile-safe, dark-mode aware.
+- Auto-rotate sections **Gross → Net → Skins** every **8s** (configurable).
+- Poll results every **10s** (reuse the existing public fetch).
+- If a section has more rows than fit, implement simple paging (e.g., show top 10, then next 10 on the next rotation).
+
+3) Visual cues
+- Animate changes: if a player’s score improves since the last poll, briefly show ▲ or ▼ next to their row.
+- Sticky header with tournament name, date, course, and “Updated hh:mm:ss”.
+
+4) Controls & settings
+- A tiny “settings” sheet opened by pressing **S** (keyboard) or **long-press 1.5s** on the header:
+  - Toggle which sections to include (Gross/Net/Skins).
+  - Rotation interval (5–20s), rows per page (e.g., 10/15/20), dark/light/auto theme.
+  - Persist in `localStorage` keyed by token.
+- **Fullscreen** button; attempt **Wake Lock API** (navigator.wakeLock) with silent fallback.
+
+5) QR share
+- Show a small QR icon in the header; clicking opens a modal with a QR code of the current kiosk/public URL for spectators.
+
+6) Code/UX constraints
+- Reuse existing public results fetcher.
+- Do NOT touch scoring logic or private APIs.
+- Keep CSS/Tailwind small and focused in a kiosk-specific component.
+
+7) Tests (Vitest)
+- Unit test a pure `rotate(nextIndex, enabledTabs)` helper.
+- Unit test a `diffRows(prev, next)` util that marks ↑/↓/no change.
+- (Optional) Snapshot test for kiosk layout container.
+
+Acceptance
+- Visiting `/public/<token>/kiosk` rotates through Gross/Net/Skins with large type and updates within ~10s.
+- Settings persist across reloads and are per-token.
+- QR modal shows a scannable code that opens the correct public URL.
+- Fullscreen works; when the device sleeps and wakes, the app resumes and continues polling.
+- Lint/tests pass; README gains a short “Kiosk mode” section.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

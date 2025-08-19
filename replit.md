@@ -20,6 +20,8 @@
 ✅ Global sticky header navigation **completed** (route-aware, tournament context)
 ✅ PWA (install/offline) + **offline scoring w/ Dexie** **completed**
 ✅ **Gross Skins payout calculation and display** **completed** (admin + public leaderboards)
+✅ **Admin Conflicts Review dashboard** **completed** (enhanced server tracking, authentication)
+✅ **Public Kiosk/TV mode** **completed** (auto-rotation, large type, QR sharing, fullscreen)
 
 ## Functional Rules (to follow in subsequent tasks)
 

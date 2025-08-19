@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
+import { useRoute, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Target, Coins, RefreshCw, Calendar, MapPin } from 'lucide-react';
+import { Trophy, Target, Coins, RefreshCw, Calendar, MapPin, Monitor } from 'lucide-react';
 
 interface LeaderboardEntry {
   entryId: string;
@@ -62,11 +62,20 @@ interface PublicResults {
 
 export default function PublicResults() {
   const [match, params] = useRoute('/public/:token');
+  const [location, setLocation] = useLocation();
   const [results, setResults] = useState<PublicResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Check for kiosk mode query parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('kiosk') === '1' && params?.token) {
+      setLocation(`/public/${params.token}/kiosk`);
+    }
+  }, [params?.token, setLocation]);
 
   const fetchResults = async (token: string, showRefreshing = false) => {
     try {
@@ -198,6 +207,27 @@ export default function PublicResults() {
             </div>
           </CardHeader>
         </Card>
+
+        {/* Action Buttons */}
+        <div className="flex justify-center gap-4 mb-6">
+          <button
+            onClick={() => setLocation(`/public/${params?.token}/kiosk`)}
+            className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+            data-testid="button-kiosk-mode"
+          >
+            <Monitor className="w-5 h-5" />
+            <span>Kiosk Mode</span>
+          </button>
+          <button
+            onClick={() => refreshResults()}
+            disabled={isRefreshing}
+            className="flex items-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors font-medium"
+            data-testid="button-refresh"
+          >
+            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
 
         {/* Results Tabs */}
         <Tabs defaultValue="gross" className="w-full">

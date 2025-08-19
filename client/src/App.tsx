@@ -12,6 +12,7 @@ import TournamentDetail from "./pages/tournament-detail";
 import GroupScoring from "./pages/group-scoring";
 import Leaderboards from "./pages/leaderboards";
 import PublicResults from "./pages/public-results";
+import PublicKiosk from "./pages/public-kiosk";
 import AdminConflicts from "./pages/admin-conflicts";
 import AppHeader from "./components/AppHeader";
 import { TournamentProvider } from "./contexts/TournamentContext";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/tournaments/:id/leaderboards" component={Leaderboards} />
       <Route path="/admin/conflicts" component={AdminConflicts} />
       <Route path="/public/:token" component={PublicResults} />
+      <Route path="/public/:token/kiosk" component={PublicKiosk} />
       <Route component={NotFound} />
     </Switch>
   );

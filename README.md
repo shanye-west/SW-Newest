@@ -26,6 +26,17 @@ A comprehensive mobile-first Progressive Web Application for golf tournament man
 - **Public Display**: Share links show pot amount, total skins, and individual player payouts
 - **Precision**: All calculations rounded to cents using standard banker's rounding
 
+### Kiosk Mode
+- **Public TV Display**: Large-format kiosk mode at `/public/{token}/kiosk` for TV screens
+- **Auto-rotation**: Automatically cycles through Gross, Net, and Skins leaderboards every 8 seconds (configurable 5-20s)
+- **Large Typography**: TV-optimized display with large fonts and clear positioning indicators
+- **Live Updates**: Polls results every 10 seconds with visual change indicators (▲/▼)
+- **Customizable Settings**: Configure sections, rotation timing, rows per page, theme via settings panel
+- **Controls**: Press 'S' or long-press header (1.5s) to open settings
+- **Fullscreen Support**: Fullscreen mode with Wake Lock API to prevent screen sleep
+- **QR Sharing**: QR code modal for easy sharing of public results URL
+- **Persistent Settings**: All preferences saved per tournament token in localStorage
+
 ### Technical Features
 - Mobile-first responsive design
 - Comprehensive error handling and validation
@@ -51,8 +62,9 @@ npx vitest run __tests__/handicap.test.ts     # Handicap calculations (18 tests)
 npx vitest run __tests__/payouts.test.ts      # Skins payout calculations (10 tests)
 npx vitest run __tests__/sync.test.ts         # Offline sync functionality (8 tests)
 npx vitest run __tests__/dexie-queue.test.ts  # Queue management (6 tests)
+npx vitest run __tests__/kiosk-utils.test.ts  # Kiosk rotation utilities (10 tests)
 
-# All tests should pass (42/42)
+# All tests should pass (52/52)
 ```
 
 ### Database
