@@ -1,0 +1,83 @@
+Goal: Enhance the Group Scoring screen with per-hole Par & Stroke Index (SI) display and a Handicap “dots” overlay that shows how many strokes each player receives on each hole. ONE cohesive feature → ONE checkpoint. Keep diffs tight.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa + Dexie.
+
+Assumptions:
+- We already have CourseHole { courseId, hole 1..18, par, strokeIndex } and endpoints:
+  - GET /api/courses/:id/holes  -> [{ hole, par, strokeIndex }]
+  - PATCH /api/courses/:id/holes (admin only)
+- Scoring uses /api/hole-scores (do NOT change).
+- playingCH is stored on Entry and reflects allowance & cap.
+
+Scope
+
+1) Server (no new endpoints unless missing)
+- If GET /api/courses/:id/holes does not exist, implement it:
+  - Validate course exists, return 18 rows sorted by hole.
+  - Shape: { holes: [{ hole, par, strokeIndex }] }.
+- (Optional) Add 30s in-memory cache for course holes by courseId to reduce load during scoring.
+
+2) Client — Group Scoring Page
+- On mount, after loading the Group’s entries (with playerName, playingCH) and tournament (with courseId), fetch course holes:
+  GET /api/courses/:courseId/holes
+- Render a compact meta row at the top of the score grid:
+  - Row 1 (already present): Hole numbers 1..18
+  - Row 2 (NEW): Par values (e.g., “4 4 3 5 …”)
+  - Row 3 (NEW, subtle): SI values (e.g., “SI 7  SI 15 …”)
+  - Collapse these rows to a small sticky header on scroll for mobile (keeping height minimal).
+- Handicap dots overlay per player cell:
+  - For each (entry, hole), compute received strokes:
+      base = Math.floor(playingCH / 18)
+      extra = (strokeIndex <= (playingCH % 18)) ? 1 : 0
+      received = base + extra
+  - Visualize received as small dots in the corner of the cell:
+      - 0 → show nothing
+      - 1 → "•"
+      - 2 → "••"
+      - 3+ → show "•×3" badge (condense)
+  - Keep dots subtle (60–70% opacity) and non-interactive; do not block tap targets for +/-.
+- Toggle:
+  - Add a tiny pill button in the scoring header: “HDCP dots: On/Off” (default On).
+  - Persist this preference in localStorage (keyed per tournamentId).
+- Accessibility:
+  - For each scoring cell, set aria-label like: "Hole 7, Par 4, SI 6, receiving 1 stroke, current score 5".
+  - Ensure dots have `aria-hidden="true"` and the info is in the label.
+
+3) State + Offline behavior
+- If /courses/:id/holes fails or returns incomplete data (less than 18 or SI not a permutation), hide SI row, keep Par row if available, and still render scoring. Dots compute only when SI is valid.
+- Do NOT change any offline queue logic; dots are purely presentational.
+
+4) Utilities
+- Add a shared helper (shared/handicapNet.ts):
+  - `strokesReceived(playingCH: number, strokeIndex: number): number`
+  - Unit-test this function.
+- Add a small formatting helper:
+  - `formatParRow(holes: {hole:number, par:number}[]): number[]`
+  - `formatSIRow(holes: {hole:number, strokeIndex:number}[]): number[]`
+
+5) Tests (Vitest)
+- `strokesReceived`:
+  - playingCH=0 → all 0
+  - playingCH=5 → SI 1..5 = 1, rest 0
+  - playingCH=18 → all 1
+  - playingCH=22 → all 1, plus SI 1..4 = +1 (i.e., 2)   (robustness even if cap changes later)
+- Rendering:
+  - Given a mock holes array and playingCH=5, verify that 5 cells show one dot.
+- Fallback:
+  - If holes payload missing or SI invalid (duplicates), dots hidden and no crash.
+
+6) UI polish
+- Keep rows compact: Par row small text; SI row even smaller/subdued (e.g., text-xs text-gray-500).
+- On very small screens, allow horizontal scroll of the 18-hole grid while keeping the header rows sticky.
+- Ensure +/- buttons remain large and easy to tap; dots sit top-right inside each cell (absolute positioned).
+
+Docs
+- README: Add a short “Scorecard: Par, SI & Handicap Dots” section explaining the overlay and that dots reflect playing CH distribution per USGA method.
+
+Acceptance
+- On a scoring page, I can see Par and SI rows under the hole numbers.
+- With playingCH > 0 and valid SI, dots appear on the correct holes; toggling the pill hides/shows them.
+- Offline still works; dots remain visible (based on cached holes response) and scoring remains responsive.
+- No changes to scoring math or endpoints; only presentation/GET holes.
+- Tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

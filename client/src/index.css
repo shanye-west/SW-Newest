@@ -107,3 +107,15 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Custom grid for scoring layout (player column + 18 holes) */
+.grid-cols-19 {
+  display: grid;
+  grid-template-columns: 120px repeat(18, 1fr);
+}
+
+@media (max-width: 768px) {
+  .grid-cols-19 {
+    grid-template-columns: 100px repeat(18, 60px);
+  }
+}

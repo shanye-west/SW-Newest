@@ -243,14 +243,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Course holes routes
+  // In-memory cache for course holes (30s TTL)
+  const courseHolesCache = new Map<string, { data: any; expiry: number }>();
+  const COURSE_HOLES_CACHE_TTL = 30 * 1000; // 30 seconds
+
   app.get("/api/courses/:id/holes", async (req, res) => {
     try {
       const { id } = req.params;
+      
+      // Check cache first
+      const cached = courseHolesCache.get(id);
+      const now = Date.now();
+      
+      if (cached && cached.expiry > now) {
+        return res.json(cached.data);
+      }
+
+      // Verify course exists
+      const course = await prisma.course.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+
+      if (!course) {
+        return res.status(404).json({ error: "Course not found" });
+      }
+
       const holes = await prisma.courseHole.findMany({
         where: { courseId: id },
         orderBy: { hole: "asc" },
+        select: { hole: true, par: true, strokeIndex: true },
       });
-      res.json(holes);
+
+      const response = { holes };
+      
+      // Cache the response
+      courseHolesCache.set(id, {
+        data: response,
+        expiry: now + COURSE_HOLES_CACHE_TTL,
+      });
+
+      res.json(response);
     } catch (error) {
       console.error("Error fetching course holes:", error);
       res.status(500).json({ error: "Failed to fetch course holes" });

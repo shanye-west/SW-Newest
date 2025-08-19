@@ -37,6 +37,20 @@ A comprehensive mobile-first Progressive Web Application for golf tournament man
 - **QR Sharing**: QR code modal for easy sharing of public results URL
 - **Persistent Settings**: All preferences saved per tournament token in localStorage
 
+### Scorecard: Par, SI & Handicap Dots
+
+The Group Scoring screen displays enhanced scorecard information including:
+
+- **Par Row**: Shows par value for each hole (3-6)
+- **SI Row**: Shows stroke index for each hole (1-18, unique permutation)  
+- **Handicap Dots**: Visual overlay showing strokes received per hole based on playing course handicap
+  - Uses USGA handicap distribution method: `base = floor(playingCH / 18)` plus extra stroke for holes with SI ≤ remainder
+  - 0 strokes = no dots, 1 stroke = •, 2 strokes = ••, 3+ strokes = •×N
+  - Toggle via "HDCP dots: On/Off" button (preference saved per tournament)
+  - Dots appear in top-right corner of each scoring cell with 70% opacity
+
+This system provides accurate net scoring assistance while maintaining focus on the +/- scoring controls.
+
 ### Technical Features
 - Mobile-first responsive design
 - Comprehensive error handling and validation
