@@ -1,33 +1,27 @@
+'use client';
+
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import ClientLayout from '../client/src/components/client-layout';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '../client/src/components/ui/toaster';
+import { TooltipProvider } from '../client/src/components/ui/tooltip';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: 'SW Monthly Golf',
-  description: 'Mobile-first golf tournament management PWA',
-  generator: 'Next.js',
-  manifest: '/manifest.json',
-  keywords: ['golf', 'tournament', 'scoring', 'handicap', 'PWA'],
-  authors: [{ name: 'SW Monthly Golf' }],
-  icons: [
-    { rel: 'apple-touch-icon', url: '/icons/icon-192x192.png' },
-    { rel: 'icon', url: '/icons/icon-192x192.png' },
-  ],
-};
-
-export const viewport: Viewport = {
-  minimumScale: 1,
-  initialScale: 1,
-  width: 'device-width',
-  viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#16a34a' },
-    { media: '(prefers-color-scheme: dark)', color: '#16a34a' },
-  ],
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
 export default function RootLayout({
   children,
@@ -35,7 +29,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full`}>
-        <ClientLayout>{children}</ClientLayout>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <div className="min-h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+              {children}
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
       </body>
     </html>
   );
