@@ -47,12 +47,15 @@ model Tournament {
   participantsForSkins  Int?      // optional
   skinsCarry            Boolean   @default(false) // MUST remain false (no carry)
   shareToken            String?   @unique // public share token
+  isFinal               Boolean   @default(false) // tournament finalization
+  finalizedAt           DateTime? // finalization timestamp
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   course                Course    @relation(fields: [courseId], references: [id])
   entries               Entry[]
   groups                Group[]
+  auditEvents           AuditEvent[]
   
   @@map("tournaments")
 }
@@ -101,4 +104,17 @@ model HoleScore {
 
   // one score per (entry,hole); required for our findUnique() code
   @@unique([entryId, hole])
+}
+
+model AuditEvent {
+  id           String    @id @default(cuid())
+  tournamentId String
+  type         String    // "finalize" | "unlock"
+  message      String?
+  createdAt    DateTime  @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, createdAt])
+  @@map("audit_events")
 }

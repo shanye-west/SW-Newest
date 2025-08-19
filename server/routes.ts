@@ -5,6 +5,63 @@ import { calculateLeaderboards, calculateGrossSkins, calculateSkinsPayouts } fro
 import { resultsCache } from "./cache";
 import { makeShareToken } from "../scripts/backfillShareTokens";
 
+// Middleware to check if tournament is finalized
+async function checkTournamentNotFinalized(req: any, res: any, next: any) {
+  try {
+    let tournamentId = req.body.tournamentId || req.params.tournamentId || req.params.id;
+    
+    // For hole-scores endpoints, get tournament from entryId
+    if (!tournamentId && req.body.entryId) {
+      const entry = await prisma.entry.findUnique({
+        where: { id: req.body.entryId },
+        select: { tournamentId: true }
+      });
+      tournamentId = entry?.tournamentId;
+    }
+    
+    // For batch hole-scores, check the first entry
+    if (!tournamentId && Array.isArray(req.body.scores) && req.body.scores[0]?.entryId) {
+      const entry = await prisma.entry.findUnique({
+        where: { id: req.body.scores[0].entryId },
+        select: { tournamentId: true }
+      });
+      tournamentId = entry?.tournamentId;
+    }
+    
+    if (!tournamentId) {
+      return next(); // Let other validation handle missing tournamentId
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId }
+    });
+
+    if (tournament?.isFinal) {
+      return res.status(403).json({ error: "tournament_finalized" });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error checking tournament finalization:', error);
+    next(); // Continue if check fails
+  }
+}
+
+// Admin authentication middleware
+function requireAdminAuth(req: any, res: any, next: any) {
+  const tournamentId = req.headers['x-tournament-id'];
+  const adminPasscode = req.headers['x-admin-passcode'];
+
+  if (!tournamentId || !adminPasscode) {
+    return res.status(401).json({ error: "Missing x-tournament-id or x-admin-passcode headers" });
+  }
+
+  // Store for use in route handlers
+  req.tournamentId = tournamentId;
+  req.adminPasscode = adminPasscode;
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Players API routes
   app.get('/api/players', async (req, res) => {
@@ -184,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/tournaments', async (req, res) => {
+  app.post('/api/tournaments', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { name, date, courseId, netAllowance, passcode } = req.body;
       
@@ -210,7 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/tournaments/:id', async (req, res) => {
+  app.put('/api/tournaments/:id', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, date, courseId, netAllowance, status } = req.body;
@@ -321,7 +378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/tournaments/:id/entries', async (req, res) => {
+  app.post('/api/tournaments/:id/entries', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       const { playerId, courseHandicap, playingCH } = req.body;
@@ -365,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/entries/:id', async (req, res) => {
+  app.delete('/api/entries/:id', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -431,7 +488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/groups', async (req, res) => {
+  app.post('/api/groups', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { tournamentId, name, teeTime } = req.body;
       
@@ -454,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/groups/:id', async (req, res) => {
+  app.put('/api/groups/:id', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, teeTime } = req.body;
@@ -478,7 +535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/groups/:id', async (req, res) => {
+  app.delete('/api/groups/:id', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { id } = req.params;
       
@@ -500,7 +557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // HoleScores API routes
-  app.post('/api/hole-scores', async (req, res) => {
+  app.post('/api/hole-scores', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { entryId, hole, strokes } = req.body;
       
@@ -565,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/hole-scores/batch', async (req, res) => {
+  app.post('/api/hole-scores/batch', checkTournamentNotFinalized, async (req, res) => {
     try {
       const { scores } = req.body; // Array of {entryId, hole, strokes, updatedAt}
       
@@ -1315,6 +1372,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error clearing conflicts:', error);
       res.status(500).json({ error: 'Failed to clear conflicts' });
+    }
+  });
+
+  // Admin endpoints for tournament finalization
+  app.post('/api/admin/tournaments/:id/finalize', requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify admin passcode
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        select: { passcode: true, isFinal: true, name: true }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      if (req.adminPasscode !== tournament.passcode) {
+        return res.status(403).json({ error: 'Invalid admin passcode' });
+      }
+
+      if (tournament.isFinal) {
+        return res.status(400).json({ error: 'Tournament is already finalized' });
+      }
+
+      // Finalize tournament and create audit log
+      const now = new Date();
+      await prisma.$transaction([
+        prisma.tournament.update({
+          where: { id },
+          data: {
+            isFinal: true,
+            finalizedAt: now
+          }
+        }),
+        prisma.auditEvent.create({
+          data: {
+            tournamentId: id,
+            type: 'finalize',
+            message: `Tournament "${tournament.name}" finalized via admin panel`
+          }
+        })
+      ]);
+
+      res.json({ success: true, finalizedAt: now });
+    } catch (error) {
+      console.error('Error finalizing tournament:', error);
+      res.status(500).json({ error: 'Failed to finalize tournament' });
+    }
+  });
+
+  app.post('/api/admin/tournaments/:id/unlock', requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify admin passcode
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        select: { passcode: true, isFinal: true, name: true }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      if (req.adminPasscode !== tournament.passcode) {
+        return res.status(403).json({ error: 'Invalid admin passcode' });
+      }
+
+      if (!tournament.isFinal) {
+        return res.status(400).json({ error: 'Tournament is not finalized' });
+      }
+
+      // Unlock tournament and create audit log
+      await prisma.$transaction([
+        prisma.tournament.update({
+          where: { id },
+          data: {
+            isFinal: false,
+            finalizedAt: null
+          }
+        }),
+        prisma.auditEvent.create({
+          data: {
+            tournamentId: id,
+            type: 'unlock',
+            message: `Tournament "${tournament.name}" unlocked via admin panel`
+          }
+        })
+      ]);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error unlocking tournament:', error);
+      res.status(500).json({ error: 'Failed to unlock tournament' });
+    }
+  });
+
+  app.get('/api/admin/tournaments/:id/audit', requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify admin passcode
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        select: { passcode: true }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      if (req.adminPasscode !== tournament.passcode) {
+        return res.status(403).json({ error: 'Invalid admin passcode' });
+      }
+
+      const auditEvents = await prisma.auditEvent.findMany({
+        where: { tournamentId: id },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.json(auditEvents);
+    } catch (error) {
+      console.error('Error fetching audit events:', error);
+      res.status(500).json({ error: 'Failed to fetch audit events' });
     }
   });
 

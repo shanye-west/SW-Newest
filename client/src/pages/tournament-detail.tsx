@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3, Share2, Copy, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3, Share2, Copy, RefreshCw, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateHandicaps, recomputeEntryHandicaps } from '../../../lib/handicap';
 import { useTournamentContext } from '../contexts/TournamentContext';
@@ -20,6 +20,8 @@ interface Tournament {
   passcode: string;
   potAmount?: number; // in cents
   participantsForSkins?: number;
+  isFinal: boolean;
+  finalizedAt?: Date;
   course: {
     name: string;
     par: number;
@@ -184,7 +186,11 @@ export default function TournamentDetail() {
         setIsEntryFormOpen(false);
         fetchEntries(tournament.id);
       } else {
-        throw new Error('Failed to add entry');
+        const error = await response.json();
+        if (error.error === 'tournament_finalized') {
+          throw new Error('Cannot add players to a finalized tournament');
+        }
+        throw new Error(error.error || 'Failed to add entry');
       }
     } catch (error) {
       toast({
@@ -213,7 +219,11 @@ export default function TournamentDetail() {
         fetchEntries(params!.id);
         fetchGroups(params!.id);
       } else {
-        throw new Error('Failed to remove entry');
+        const error = await response.json();
+        if (error.error === 'tournament_finalized') {
+          throw new Error('Cannot remove players from a finalized tournament');
+        }
+        throw new Error(error.error || 'Failed to remove entry');
       }
     } catch (error) {
       toast({
@@ -253,7 +263,11 @@ export default function TournamentDetail() {
         resetGroupForm();
         fetchGroups(tournament.id);
       } else {
-        throw new Error('Failed to save group');
+        const error = await response.json();
+        if (error.error === 'tournament_finalized') {
+          throw new Error('Cannot modify groups in a finalized tournament');
+        }
+        throw new Error(error.error || 'Failed to save group');
       }
     } catch (error) {
       toast({
@@ -282,7 +296,11 @@ export default function TournamentDetail() {
         fetchEntries(params!.id);
         fetchGroups(params!.id);
       } else {
-        throw new Error('Failed to assign player');
+        const error = await response.json();
+        if (error.error === 'tournament_finalized') {
+          throw new Error('Cannot reassign players in a finalized tournament');
+        }
+        throw new Error(error.error || 'Failed to assign player');
       }
     } catch (error) {
       toast({
@@ -324,7 +342,11 @@ export default function TournamentDetail() {
         fetchGroups(params!.id);
         fetchEntries(params!.id);
       } else {
-        throw new Error('Failed to delete group');
+        const error = await response.json();
+        if (error.error === 'tournament_finalized') {
+          throw new Error('Cannot delete groups in a finalized tournament');
+        }
+        throw new Error(error.error || 'Failed to delete group');
       }
     } catch (error) {
       toast({
@@ -435,6 +457,97 @@ export default function TournamentDetail() {
     }
   };
 
+  const handleFinalizeTournament = async () => {
+    if (!tournament) return;
+
+    const confirmed = confirm(
+      'Are you sure you want to finalize this tournament? This will prevent any further scoring, entry changes, or group edits. This action can be undone later if needed.'
+    );
+    
+    if (!confirmed) return;
+
+    const adminPasscode = prompt('Enter admin passcode to finalize tournament:');
+    if (!adminPasscode) return;
+
+    try {
+      const response = await fetch(`/api/admin/tournaments/${tournament.id}/finalize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Passcode': adminPasscode
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setTournament({
+          ...tournament,
+          isFinal: true,
+          finalizedAt: new Date(result.finalizedAt)
+        });
+        toast({
+          title: "Tournament finalized",
+          description: "Tournament has been locked and no further changes are allowed"
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to finalize tournament');
+      }
+    } catch (error: any) {
+      console.error('Error finalizing tournament:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to finalize tournament",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUnlockTournament = async () => {
+    if (!tournament) return;
+
+    const confirmed = confirm(
+      'Are you sure you want to unlock this tournament? This will allow scoring, entry changes, and group edits again.'
+    );
+    
+    if (!confirmed) return;
+
+    const adminPasscode = prompt('Enter admin passcode to unlock tournament:');
+    if (!adminPasscode) return;
+
+    try {
+      const response = await fetch(`/api/admin/tournaments/${tournament.id}/unlock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Passcode': adminPasscode
+        }
+      });
+
+      if (response.ok) {
+        setTournament({
+          ...tournament,
+          isFinal: false,
+          finalizedAt: undefined
+        });
+        toast({
+          title: "Tournament unlocked",
+          description: "Tournament is now active and changes are allowed"
+        });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to unlock tournament');
+      }
+    } catch (error: any) {
+      console.error('Error unlocking tournament:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to unlock tournament",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!tournament) {
     return <div className="p-4">Loading tournament...</div>;
   }
@@ -446,12 +559,26 @@ export default function TournamentDetail() {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <h1 className="text-2xl font-bold">{tournament.name}</h1>
+          {tournament.isFinal && (
+            <div className="flex items-center space-x-1 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-sm font-medium">
+              <Lock className="w-4 h-4" />
+              <span>Tournament Finalized</span>
+            </div>
+          )}
+        </div>
         <div className="text-right text-sm">
           <p><strong>Course:</strong> {tournament.course.name}</p>
           <p><strong>Net Allowance:</strong> {tournament.netAllowance}%</p>
           <p><strong>Passcode:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{tournament.passcode}</code></p>
           {tournament.potAmount && tournament.participantsForSkins && (
             <p><strong>Skins Pot:</strong> ${(tournament.potAmount / 100).toFixed(2)} ({tournament.participantsForSkins} participants)</p>
+          )}
+          {tournament.isFinal && tournament.finalizedAt && (
+            <p className="text-red-600 dark:text-red-400 font-medium">
+              <strong>Finalized:</strong> {new Date(tournament.finalizedAt).toLocaleString()}
+            </p>
           )}
         </div>
       </div>
@@ -471,12 +598,15 @@ export default function TournamentDetail() {
             <h2 className="text-xl font-semibold">Tournament Entries</h2>
             <Button 
               onClick={() => setIsEntryFormOpen(true)}
-              disabled={availablePlayersForEntry.length === 0}
+              disabled={availablePlayersForEntry.length === 0 || tournament.isFinal}
               className="bg-green-600 hover:bg-green-700"
               data-testid="button-add-entry"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Player
+              {tournament.isFinal && (
+                <Lock className="w-3 h-3 ml-1" />
+              )}
             </Button>
           </div>
 
@@ -566,6 +696,7 @@ export default function TournamentDetail() {
                         onValueChange={(value) => 
                           handleAssignToGroup(entry.id, value === 'unassigned' ? null : value)
                         }
+                        disabled={tournament.isFinal}
                       >
                         <SelectTrigger className="w-32">
                           <SelectValue />
@@ -585,9 +716,11 @@ export default function TournamentDetail() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleRemoveEntry(entry.id)}
+                        disabled={tournament.isFinal}
                         data-testid={`button-remove-entry-${entry.id}`}
                       >
                         <UserMinus className="w-4 h-4" />
+                        {tournament.isFinal && <Lock className="w-3 h-3 ml-1" />}
                       </Button>
                     </td>
                   </tr>
@@ -608,11 +741,13 @@ export default function TournamentDetail() {
             <h2 className="text-xl font-semibold">Tournament Groups</h2>
             <Button 
               onClick={() => setIsGroupFormOpen(true)}
+              disabled={tournament.isFinal}
               className="bg-green-600 hover:bg-green-700"
               data-testid="button-add-group"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Group
+              {tournament.isFinal && <Lock className="w-3 h-3 ml-1" />}
             </Button>
           </div>
 
@@ -703,17 +838,21 @@ export default function TournamentDetail() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleEditGroup(group)}
+                        disabled={tournament.isFinal}
                         data-testid={`button-edit-group-${group.id}`}
                       >
                         <Edit2 className="w-4 h-4" />
+                        {tournament.isFinal && <Lock className="w-3 h-3 ml-1" />}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleDeleteGroup(group.id)}
+                        disabled={tournament.isFinal}
                         data-testid={`button-delete-group-${group.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
+                        {tournament.isFinal && <Lock className="w-3 h-3 ml-1" />}
                       </Button>
                     </div>
                   </div>
@@ -903,6 +1042,63 @@ export default function TournamentDetail() {
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       These settings will be used to calculate skins payouts on the leaderboards and public results page.
                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Tournament Finalization Section */}
+              <div className="space-y-4 border-t pt-6">
+                <h3 className="text-lg font-medium">Tournament Finalization</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Finalize this tournament to prevent any further scoring, roster changes, or group edits. 
+                  This action creates an audit trail and locks the tournament results.
+                </p>
+                
+                {tournament.isFinal ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Lock className="w-5 h-5 text-red-600" />
+                        <h4 className="font-medium text-red-800 dark:text-red-200">Tournament Finalized</h4>
+                      </div>
+                      {tournament.finalizedAt && (
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          Finalized on {new Date(tournament.finalizedAt).toLocaleString()}
+                        </p>
+                      )}
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        No further changes to scores, entries, or groups are allowed.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => handleUnlockTournament()}
+                      variant="outline"
+                      className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                      data-testid="button-unlock-tournament"
+                    >
+                      <Unlock className="w-4 h-4 mr-2" />
+                      Unlock Tournament
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                        <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Tournament Active</h4>
+                      </div>
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        Scores, entries, and groups can still be modified.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => handleFinalizeTournament()}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      data-testid="button-finalize-tournament"
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Finalize Tournament
+                    </Button>
                   </div>
                 )}
               </div>

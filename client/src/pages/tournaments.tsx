@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit2, Trash2, Trophy } from 'lucide-react';
+import { Plus, Edit2, Trash2, Trophy, Lock, Unlock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Tournament {
@@ -15,6 +15,8 @@ interface Tournament {
   course?: { name: string };
   netAllowance: number;
   passcode: string;
+  isFinal: boolean;
+  finalizedAt?: Date;
   createdAt: Date;
 }
 
@@ -278,6 +280,12 @@ export default function TournamentsPage() {
                   <a href={`/tournaments/${tournament.id}`} className="font-semibold text-lg text-blue-600 hover:text-blue-800" data-testid={`tournament-name-${tournament.id}`}>
                     {tournament.name}
                   </a>
+                  {tournament.isFinal && (
+                    <div className="flex items-center space-x-1 px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-xs font-medium">
+                      <Lock className="w-3 h-3" />
+                      <span>Final</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex space-x-1">
                   <Button
@@ -307,6 +315,11 @@ export default function TournamentsPage() {
                     {tournament.passcode}
                   </code>
                 </p>
+                {tournament.isFinal && tournament.finalizedAt && (
+                  <p className="text-red-600 dark:text-red-400">
+                    <span className="font-medium">Finalized:</span> {new Date(tournament.finalizedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 Created: {new Date(tournament.createdAt).toLocaleDateString()}

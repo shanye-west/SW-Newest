@@ -1,0 +1,69 @@
+Goal: Add a “Finalize Tournament” lock that prevents any further scoring or roster/group edits, shows a Final badge on admin/public/kiosk views, and records an audit trail. ONE cohesive feature → ONE checkpoint. Keep diffs tight.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + Dexie + vite-plugin-pwa.
+
+Scope
+
+1) DB (Prisma)
+- Add to Tournament:
+  - isFinal Boolean @default(false)
+  - finalizedAt DateTime?
+- Create a small AuditEvent table for admin actions:
+  model AuditEvent {
+    id          String   @id @default(cuid())
+    tournamentId String
+    type        String   // "finalize" | "unlock"
+    message     String?
+    createdAt   DateTime @default(now())
+    tournament  Tournament @relation(fields: [tournamentId], references: [id])
+    @@index([tournamentId, createdAt])
+  }
+- Migration only; do NOT drop data.
+
+2) Server enforcement
+- For finalized tournaments (isFinal = true), block mutating endpoints with 403 { error: "tournament_finalized" }:
+  - POST /api/scores (upserts)
+  - Entry add/remove routes
+  - Group create/rename/delete and entry assignments
+  - Mutations that alter netAllowance, course, etc.
+- Add admin endpoints (require x-tournament-id + x-admin-passcode header auth, same as conflicts):
+  - POST /api/admin/finalize { tournamentId } → sets isFinal=true, finalizedAt=now(), inserts AuditEvent "finalize".
+  - POST /api/admin/unlock { tournamentId } → sets isFinal=false, finalizedAt=null, inserts AuditEvent "unlock".
+  - GET  /api/admin/audit?tournamentId=... → latest 100 events.
+- Results APIs (`/api/tournaments/:id/results` and `/api/public/:token/results`) should include:
+  { status: "final" | "live", finalizedAt?: string }.
+  (No change to scoring math.)
+
+3) Client UI
+- Admin Tournament screen:
+  - Add a "Finalize Tournament" primary button with confirm dialog:
+    “This will prevent any further scoring or edits. You can unlock if needed.”
+  - When finalized, show a green “FINAL” badge with timestamp and replace the button with “Unlock for Edits” (secondary) with confirm.
+  - If isFinal, disable/hide edit controls on that page (entries/groups/allowance edits).
+- Score screen (any view):
+  - If tournament is final, replace scoring controls with a read-only notice: “Tournament is final — scoring is locked.”
+- Public page & Kiosk:
+  - Show a small “FINAL” badge with finalized time next to the header; keep live polling (no changes will arrive, but safe).
+- Optional: In Conflicts Review, show a banner “Tournament is final” and disable resolve actions (read-only).
+
+4) Tests (Vitest)
+- Server:
+  - Finalize sets flags and writes an AuditEvent.
+  - Mutating endpoints return 403 when isFinal=true.
+  - Unlock flips flags and logs event.
+- Client:
+  - A tiny pure helper `finalStatusLabel({ isFinal, finalizedAt })` -> strings like "FINAL • 3:24 PM".
+  - UI conditionals (can be lightweight: render guards or component unit tests).
+- Results endpoints include { status, finalizedAt } in the JSON.
+
+DX/Docs
+- Update README: Finalize tournament section (what it does, how to unlock, which endpoints are locked).
+- Keep diffs minimal; do not modify unrelated styles or logic.
+
+Acceptance (before creating the single checkpoint):
+- I can finalize a tournament via the admin UI; edits & scoring are blocked with 403 on the server.
+- Public and kiosk views show a “FINAL” badge with timestamp.
+- Unlocking re-enables edits; an audit log shows both actions.
+- Results APIs include status/finalizedAt consistently.
+- Lint/tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

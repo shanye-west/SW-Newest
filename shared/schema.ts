@@ -35,8 +35,19 @@ export const tournaments = sqliteTable("tournaments", {
   potAmount: integer("pot_amount"),
   participantsForSkins: integer("participants_for_skins"),
   skinsCarry: integer("skins_carry", { mode: "boolean" }).notNull().default(false),
+  isFinal: integer("is_final", { mode: "boolean" }).notNull().default(false),
+  finalizedAt: integer("finalized_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+// Audit Events table
+export const auditEvents = sqliteTable("audit_events", {
+  id: text("id").primaryKey(),
+  tournamentId: text("tournament_id").notNull(),
+  type: text("type").notNull(), // "finalize" | "unlock"
+  message: text("message"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
 // Group table
@@ -111,6 +122,15 @@ export const insertHoleScoreSchema = createInsertSchema(holeScores, {
   strokes: z.number().int().min(1).max(15),
 });
 
+export const insertAuditEventSchema = createInsertSchema(auditEvents, {
+  tournamentId: z.string().min(1, "Tournament ID is required"),
+  type: z.enum(["finalize", "unlock"]),
+  message: z.string().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Select schemas
 export const selectPlayerSchema = createSelectSchema(players);
 export const selectCourseSchema = createSelectSchema(courses);
@@ -118,6 +138,7 @@ export const selectTournamentSchema = createSelectSchema(tournaments);
 export const selectGroupSchema = createSelectSchema(groups);
 export const selectEntrySchema = createSelectSchema(entries);
 export const selectHoleScoreSchema = createSelectSchema(holeScores);
+export const selectAuditEventSchema = createSelectSchema(auditEvents);
 
 // Types
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
@@ -126,6 +147,7 @@ export type InsertTournament = z.infer<typeof insertTournamentSchema>;
 export type InsertGroup = z.infer<typeof insertGroupSchema>;
 export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertHoleScore = z.infer<typeof insertHoleScoreSchema>;
+export type InsertAuditEvent = z.infer<typeof insertAuditEventSchema>;
 
 export type Player = z.infer<typeof selectPlayerSchema>;
 export type Course = z.infer<typeof selectCourseSchema>;
@@ -133,6 +155,7 @@ export type Tournament = z.infer<typeof selectTournamentSchema>;
 export type Group = z.infer<typeof selectGroupSchema>;
 export type Entry = z.infer<typeof selectEntrySchema>;
 export type HoleScore = z.infer<typeof selectHoleScoreSchema>;
+export type AuditEvent = z.infer<typeof selectAuditEventSchema>;
 
 // Extended types for UI
 export type TournamentWithCourse = Tournament & {
