@@ -100,3 +100,45 @@ The application uses SQLite with Prisma ORM. Database includes:
 - **State**: React Query for server state management
 
 Built following mobile-first PWA principles with comprehensive admin functionality.
+
+## Header Configuration
+
+The app includes a global sticky header that's route-aware and tournament-aware. The header configuration is managed through `client/src/config/headerConfig.tsx`.
+
+### Adding New Route Headers
+
+To add header configuration for a new route:
+
+```typescript
+import { addHeaderConfig } from '@/config/headerConfig';
+import { MyIcon } from 'lucide-react';
+
+addHeaderConfig({
+  pattern: '/my-route',  // or regex: /^\/my-route\/[^/]+$/
+  title: 'My Page',
+  actions: [{
+    label: 'My Action',
+    icon: <MyIcon className="w-5 h-5" />,
+    testId: 'my-action',
+    onClick: ({ location, setLocation, activeTournament }) => {
+      // Handle action - has access to routing and tournament context
+      setLocation('/target-route');
+    }
+  }]
+});
+```
+
+### Header Features
+
+- **Tournament Context**: Shows active tournament info when in tournament pages
+- **Route-Aware Actions**: Different action buttons based on current route
+- **Safe Area Support**: Proper padding for mobile notches and system UI
+- **Back Navigation**: Contextual back button with smart routing
+- **Overflow Menu**: Actions beyond 2 items go into kebab menu
+- **Dark Mode**: Automatic dark mode support
+
+### Route Patterns
+
+- Static routes: `'/players'`, `'/courses'` 
+- Dynamic routes: `/^\/tournaments\/[^/]+$/` for `/tournaments/:id`
+- Pattern matching uses string equality or regex test

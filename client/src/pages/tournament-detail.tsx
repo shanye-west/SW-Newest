@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateHandicaps, recomputeEntryHandicaps } from '../../../lib/handicap';
+import { useTournamentContext } from '../contexts/TournamentContext';
 
 interface Tournament {
   id: string;
@@ -59,6 +60,7 @@ interface GroupFormData {
 export default function TournamentDetail() {
   const [match, params] = useRoute('/tournaments/:id');
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const { setActiveTournament } = useTournamentContext();
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -88,6 +90,12 @@ export default function TournamentDetail() {
       if (response.ok) {
         const data = await response.json();
         setTournament(data);
+        // Set active tournament for header context
+        setActiveTournament({
+          id: data.id,
+          name: data.name,
+          date: data.date
+        });
       }
     } catch (error) {
       console.error('Failed to fetch tournament:', error);
@@ -331,16 +339,8 @@ export default function TournamentDetail() {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-yellow-600" />
-            {tournament.name}
-          </h1>
-          <p className="text-gray-600">
-            {new Date(tournament.date).toLocaleDateString()} at {tournament.course.name}
-          </p>
-        </div>
         <div className="text-right text-sm">
+          <p><strong>Course:</strong> {tournament.course.name}</p>
           <p><strong>Net Allowance:</strong> {tournament.netAllowance}%</p>
           <p><strong>Passcode:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{tournament.passcode}</code></p>
         </div>

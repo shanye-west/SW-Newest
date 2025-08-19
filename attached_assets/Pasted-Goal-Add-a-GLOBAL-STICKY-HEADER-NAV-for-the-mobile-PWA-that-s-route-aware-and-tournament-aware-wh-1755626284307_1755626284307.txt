@@ -1,0 +1,46 @@
+Goal: Add a GLOBAL, STICKY HEADER NAV for the mobile PWA that’s route-aware and tournament-aware, while keeping existing bottom tabs. One cohesive feature → ONE checkpoint.
+
+Stack context: Vite + Express + TypeScript, Wouter for routing, React Query for data. Read and follow replit.md. Keep diffs tight.
+
+Deliverables:
+1) <AppHeader/> (sticky, mobile-safe):
+   - Safe area support: padding-top uses env(safe-area-inset-top); 56–64px tall.
+   - Left: context/back button (if not at root), app/tournament switcher:
+       * If a tournament is active, show: “SW Monthly Golf” on first line (small), and the tournament short name + date on second line.
+       * Tapping the title takes me to /tournaments list (to pick another event).
+   - Center/Title: route-aware title (e.g., “Players”, “Courses”, “Tournament”, “Groups”, “Score”, “Leaderboards”).
+   - Right actions (compact icon buttons, with aria-labels & tooltips):
+       * On /players: “Add Player”
+       * On /courses: “Add Course”
+       * On /tournaments/[id]: “Add Player to Event”
+       * On /tournaments/[id]/groups: “New Group”, and a time icon to edit tee time
+       * On /score: “Undo” (one-step) and “Settings”
+       * Kebab (•••) menu for overflow actions per route
+   - Visuals: subtle bottom border/shadow; brand green accents; dark mode auto.
+
+2) Route header config:
+   - Create a small registry (map of path patterns → {title, actions[]}) so header content is declarative.
+   - Works with Wouter: match dynamic routes like /tournaments/:id and /tournaments/:id/groups.
+
+3) State + context:
+   - Add a lightweight “activeTournament” client context (id, name, date) consumed by <AppHeader/>. Keep it in sync when navigating into a tournament detail page.
+   - If no active tournament, header shows only app title and back/none.
+
+4) Accessibility:
+   - All icons have aria-labels.
+   - Header height doesn’t overlap content (content gets top padding equal to header height + safe area).
+   - Keyboard focus styles visible.
+
+5) Tests (Vitest + @testing-library/react):
+   - Header renders correct title on /players, /courses, /tournaments/:id, /tournaments/:id/groups.
+   - Action buttons appear/vanish per route config.
+   - “Back” appears when not at root; title tap navigates to /tournaments.
+
+6) Docs:
+   - README: short section on header config (how to add a new route title/action).
+
+Acceptance (before creating the single checkpoint):
+- Sticky header renders on all main routes, with correct title/actions and safe-area padding.
+- Route registry drives header; changing registry changes header without touching component code.
+- Tests and lint pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

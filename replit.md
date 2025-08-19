@@ -17,6 +17,7 @@
 ✅ Tournaments management **completed** (entries, HI→CH, allowance, cap=18)  
 ✅ Groups (manual w/ tee times) **completed**
 ✅ Handicap calculation system with 18 passing unit tests
+✅ Global sticky header navigation **completed** (route-aware, tournament context)
 🟡 PWA (install/offline) + **offline scoring w/ Dexie** **pending**
 
 ## Functional Rules (to follow in subsequent tasks)

@@ -9,6 +9,8 @@ import PlayersPage from "./pages/players";
 import CoursesPage from "./pages/courses";
 import TournamentsPage from "./pages/tournaments";
 import TournamentDetail from "./pages/tournament-detail";
+import AppHeader from "./components/AppHeader";
+import { TournamentProvider } from "./contexts/TournamentContext";
 
 function Router() {
   return (
@@ -27,8 +29,20 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <TournamentProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <AppHeader />
+            <main 
+              className="w-full"
+              style={{
+                paddingTop: 'calc(64px + env(safe-area-inset-top, 0px))'
+              }}
+            >
+              <Router />
+            </main>
+          </div>
+          <Toaster />
+        </TournamentProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
