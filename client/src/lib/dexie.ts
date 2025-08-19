@@ -7,7 +7,7 @@ interface ScoreQueueItem {
   hole: number;
   strokes: number;
   clientUpdatedAt: Date; // Local timestamp when user made change
-  synced?: boolean;
+  synced: number; // 0 = not synced, 1 = synced
 }
 
 interface SyncedScore {
@@ -18,6 +18,22 @@ interface SyncedScore {
   clientUpdatedAt: Date;
   serverUpdatedAt: Date;
 }
+
+// Database class
+class GolfDatabase extends Dexie {
+  scoreQueue!: EntityTable<ScoreQueueItem, 'id'>;
+  syncedScores!: EntityTable<SyncedScore, 'id'>;
+
+  constructor() {
+    super('GolfDatabase');
+    this.version(1).stores({
+      scoreQueue: '++id, entryId, hole, synced',
+      syncedScores: '++id, entryId, hole'
+    });
+  }
+}
+
+const db = new GolfDatabase();
 
 class GolfDatabase extends Dexie {
   scoreQueue!: EntityTable<ScoreQueueItem, 'id'>;
@@ -61,7 +77,7 @@ export async function queueScoreUpdate(params: { entryId: string; hole: number; 
     hole,
     strokes,
     clientUpdatedAt: now,
-    synced: false
+    synced: 0
   });
   
   console.log(`Queued score: entry ${entryId}, hole ${hole}, strokes ${strokes}`);
@@ -156,4 +172,5 @@ export async function flushScoreQueue(onRefetchNeeded?: () => Promise<void>): Pr
   }
 }
 
+export { db };
 export type { ScoreQueueItem, SyncedScore };

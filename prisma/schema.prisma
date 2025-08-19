@@ -85,7 +85,7 @@ model Entry {
   tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
   group           Group?     @relation(fields: [groupId], references: [id])
-  holeScores      HoleScore[]
+  scores          HoleScore[]
 
   @@unique([tournamentId, playerId])
   @@map("entries")
