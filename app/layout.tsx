@@ -1,12 +1,11 @@
 'use client';
 
-import type { Metadata, Viewport } from 'next';
+import React from 'react';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '../client/src/components/ui/toaster';
-import { TooltipProvider } from '../client/src/components/ui/tooltip';
+import { Toaster } from '../components/ui/toaster';
+import { TooltipProvider } from '../components/ui/tooltip';
 
 const inter = Inter({ subsets: ['latin'] });
 

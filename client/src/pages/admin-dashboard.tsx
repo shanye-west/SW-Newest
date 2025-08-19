@@ -1,11 +1,9 @@
-'use client';
-
 import React from 'react';
-import Link from 'next/link';
-import { Card, CardContent } from '../components/ui/card';
+import { Link } from 'wouter';
+import { Card, CardContent } from '@/components/ui/card';
 import { Users, MapPin, Trophy, UsersIcon, Home } from 'lucide-react';
 
-export default function HomePage() {
+export default function AdminDashboard() {
   const adminLinks = [
     { href: '/', label: 'Home', icon: Home },
     { href: '/players', label: 'Players', icon: Users },
