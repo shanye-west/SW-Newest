@@ -71,11 +71,11 @@ export function calculateLeaderboards(
 ): { gross: LeaderboardEntry[]; net: LeaderboardEntry[] } {
   const leaderboardEntries: LeaderboardEntry[] = entries.map(entry => {
     const holeScoresMap: { [hole: number]: number } = {};
-    entry.holeScores.forEach(score => {
+    entry.scores.forEach(score => {
       holeScoresMap[score.hole] = score.strokes;
     });
 
-    const grossTotal = entry.holeScores.reduce((sum, score) => sum + score.strokes, 0);
+    const grossTotal = entry.scores.reduce((sum, score) => sum + score.strokes, 0);
     const netTotal = grossTotal - entry.playingCH;
 
     return {
@@ -185,7 +185,7 @@ export function calculateGrossSkins(
     const holeScores: Array<{ entryId: string; playerName: string; strokes: number }> = [];
 
     entries.forEach(entry => {
-      const holeScore = entry.holeScores.find(hs => hs.hole === hole);
+      const holeScore = entry.scores.find(hs => hs.hole === hole);
       if (holeScore) {
         holeScores.push({
           entryId: entry.id,

@@ -689,6 +689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         res.json({
+          status: wasOverwritten ? "ignored" : "accepted",
           strokes: holeScore.strokes,
           updatedAt: holeScore.updatedAt,
           wasOverwritten,
@@ -794,7 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: true,
-              holeScores: true,
+              scores: true,
             },
           },
         },
@@ -836,7 +837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: true,
-              holeScores: true,
+              scores: true,
             },
           },
         },
@@ -897,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           entries: {
             include: {
               player: true,
-              holeScores: true,
+              scores: true,
             },
           },
         },
@@ -926,7 +927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           player: entry.player,
           courseHandicap: entry.courseHandicap,
           playingCH: entry.playingCH,
-          holeScores: entry.holeScores.reduce(
+          holeScores: entry.scores.reduce(
             (acc, score) => {
               acc[score.hole] = score.strokes;
               return acc;
@@ -951,7 +952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         include: {
           entries: {
             include: {
-              holeScores: true,
+              scores: true,
             },
           },
         },
@@ -964,7 +965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Return scores in the format expected by client
       const scores: { [entryId: string]: { [hole: number]: number } } = {};
       group.entries.forEach((entry) => {
-        scores[entry.id] = entry.holeScores.reduce(
+        scores[entry.id] = entry.scores.reduce(
           (acc, score) => {
             acc[score.hole] = score.strokes;
             return acc;
@@ -989,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entries: {
           include: {
             player: true,
-            holeScores: true,
+            scores: true,
           },
         },
       },

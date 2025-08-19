@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Trophy, Target, Coins } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useRoute } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Trophy, Target, Coins } from "lucide-react";
 
 interface LeaderboardEntry {
   entryId: string;
@@ -37,11 +37,15 @@ interface SkinsLeaderboard {
 }
 
 export default function Leaderboards() {
-  const [match, params] = useRoute('/tournaments/:id/leaderboards');
-  const [grossLeaderboard, setGrossLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [match, params] = useRoute("/tournaments/:id/leaderboards");
+  const [grossLeaderboard, setGrossLeaderboard] = useState<LeaderboardEntry[]>(
+    [],
+  );
   const [netLeaderboard, setNetLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [skinsResults, setSkinsResults] = useState<SkinsResult[]>([]);
-  const [skinsLeaderboard, setSkinsLeaderboard] = useState<SkinsLeaderboard[]>([]);
+  const [skinsLeaderboard, setSkinsLeaderboard] = useState<SkinsLeaderboard[]>(
+    [],
+  );
   const [coursePar, setCoursePar] = useState(72);
   const [potAmount, setPotAmount] = useState<number | null>(null);
   const [totalSkins, setTotalSkins] = useState(0);
@@ -53,20 +57,20 @@ export default function Leaderboards() {
     if (params?.id) {
       fetchLeaderboards(params.id);
       fetchSkins(params.id);
-      
+
       // Set up polling for live updates
       const interval = setInterval(() => {
         fetchLeaderboards(params.id);
         fetchSkins(params.id);
       }, 30000); // Update every 30 seconds
-      
+
       return () => clearInterval(interval);
     }
   }, [params?.id]);
 
   const fetchLeaderboards = async (tournamentId: string) => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/leaderboards`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/results`);
       if (response.ok) {
         const data = await response.json();
         setGrossLeaderboard(data.gross);
@@ -75,7 +79,7 @@ export default function Leaderboards() {
         setLastUpdated(new Date(data.updated));
       }
     } catch (error) {
-      console.error('Error fetching leaderboards:', error);
+      console.error("Error fetching leaderboards:", error);
     } finally {
       setLoading(false);
     }
@@ -88,29 +92,35 @@ export default function Leaderboards() {
         const data = await response.json();
         if (data.skins) {
           setSkinsResults(data.skins.perHole || []);
-          
+
           // Convert perPlayer object to leaderboard array with payouts
-          const leaderboard = Object.entries(data.skins.perPlayer || {}).map(([entryId, player]: [string, any]) => ({
-            playerName: player.playerName,
-            entryId,
-            skins: player.count,
-            payout: data.skins.payout?.perPlayerPayouts?.[entryId] || 0,
-          })).sort((a, b) => b.skins - a.skins);
-          
+          const leaderboard = Object.entries(data.skins.perPlayer || {})
+            .map(([entryId, player]: [string, any]) => ({
+              playerName: player.playerName,
+              entryId,
+              skins: player.count,
+              payout: data.skins.payout?.perPlayerPayouts?.[entryId] || 0,
+            }))
+            .sort((a, b) => b.skins - a.skins);
+
           setSkinsLeaderboard(leaderboard);
           setTotalSkins(data.skins.payout?.totalSkins || 0);
-          setPotAmount(data.skins.payout?.potAmount ? data.skins.payout.potAmount / 100 : null);
+          setPotAmount(
+            data.skins.payout?.potAmount
+              ? data.skins.payout.potAmount / 100
+              : null,
+          );
           setPayoutPerSkin(data.skins.payout?.payoutPerSkin || 0);
         }
       }
     } catch (error) {
-      console.error('Error fetching skins:', error);
+      console.error("Error fetching skins:", error);
     }
   };
 
   const formatScore = (score: number, par: number): string => {
     const toPar = score - par;
-    if (toPar === 0) return 'E';
+    if (toPar === 0) return "E";
     return toPar > 0 ? `+${toPar}` : `${toPar}`;
   };
 
@@ -162,17 +172,23 @@ export default function Leaderboards() {
             <CardContent>
               <div className="space-y-3">
                 {grossLeaderboard.map((entry, index) => (
-                  <div 
-                    key={entry.entryId} 
+                  <div
+                    key={entry.entryId}
                     className={`flex items-center justify-between p-3 rounded-lg border ${
-                      index < 3 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'
+                      index < 3
+                        ? "bg-yellow-50 border-yellow-200"
+                        : "bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="text-center min-w-[3rem]">
-                        <div className="font-bold text-lg">{getPositionDisplay(entry)}</div>
+                        <div className="font-bold text-lg">
+                          {getPositionDisplay(entry)}
+                        </div>
                         {entry.tied && (
-                          <Badge variant="secondary" className="text-xs">TIED</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            TIED
+                          </Badge>
                         )}
                       </div>
                       <div>
@@ -183,7 +199,9 @@ export default function Leaderboards() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xl font-bold">{entry.grossTotal}</div>
+                      <div className="text-xl font-bold">
+                        {entry.grossTotal}
+                      </div>
                       <div className="text-sm text-gray-600">
                         {formatScore(entry.grossTotal, coursePar)}
                       </div>
@@ -207,23 +225,30 @@ export default function Leaderboards() {
             <CardContent>
               <div className="space-y-3">
                 {netLeaderboard.map((entry, index) => (
-                  <div 
-                    key={entry.entryId} 
+                  <div
+                    key={entry.entryId}
                     className={`flex items-center justify-between p-3 rounded-lg border ${
-                      index < 3 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'
+                      index < 3
+                        ? "bg-yellow-50 border-yellow-200"
+                        : "bg-gray-50"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="text-center min-w-[3rem]">
-                        <div className="font-bold text-lg">{getPositionDisplay(entry)}</div>
+                        <div className="font-bold text-lg">
+                          {getPositionDisplay(entry)}
+                        </div>
                         {entry.tied && (
-                          <Badge variant="secondary" className="text-xs">TIED</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            TIED
+                          </Badge>
                         )}
                       </div>
                       <div>
                         <h3 className="font-medium">{entry.playerName}</h3>
                         <p className="text-sm text-gray-600">
-                          Gross: {entry.grossTotal} • CH: {entry.courseHandicap} • Playing: {entry.playingCH}
+                          Gross: {entry.grossTotal} • CH: {entry.courseHandicap}{" "}
+                          • Playing: {entry.playingCH}
                         </p>
                       </div>
                     </div>
@@ -251,7 +276,8 @@ export default function Leaderboards() {
                   Skins Leaderboard
                   {potAmount ? (
                     <Badge variant="secondary">
-                      Pot: ${potAmount.toFixed(2)} • Total skins: {totalSkins} • Payout/skin: ${payoutPerSkin.toFixed(2)}
+                      Pot: ${potAmount.toFixed(2)} • Total skins: {totalSkins} •
+                      Payout/skin: ${payoutPerSkin.toFixed(2)}
                     </Badge>
                   ) : totalSkins > 0 ? (
                     <Badge variant="outline">
@@ -266,7 +292,9 @@ export default function Leaderboards() {
                     {potAmount ? (
                       <>
                         <p>No skins yet. Payout/skin: $0.00</p>
-                        <p className="text-xs mt-1">Pot: ${potAmount.toFixed(2)} waiting for winners</p>
+                        <p className="text-xs mt-1">
+                          Pot: ${potAmount.toFixed(2)} waiting for winners
+                        </p>
                       </>
                     ) : (
                       <p>No skins won yet. All holes have been pushes!</p>
@@ -275,17 +303,21 @@ export default function Leaderboards() {
                 ) : (
                   <div className="space-y-3">
                     {skinsLeaderboard.map((entry, index) => (
-                      <div 
-                        key={entry.entryId} 
+                      <div
+                        key={entry.entryId}
                         className={`flex items-center justify-between p-3 rounded-lg border ${
-                          index === 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50'
+                          index === 0
+                            ? "bg-green-50 border-green-200"
+                            : "bg-gray-50"
                         }`}
                       >
                         <div>
                           <h3 className="font-medium">{entry.playerName}</h3>
                           <p className="text-sm text-gray-600">
-                            {entry.skins} skin{entry.skins !== 1 ? 's' : ''}
-                            {potAmount && entry.payout > 0 && ` (${entry.payout.toFixed(2)})`}
+                            {entry.skins} skin{entry.skins !== 1 ? "s" : ""}
+                            {potAmount &&
+                              entry.payout > 0 &&
+                              ` (${entry.payout.toFixed(2)})`}
                           </p>
                         </div>
                         {potAmount && entry.payout > 0 && (
@@ -310,8 +342,8 @@ export default function Leaderboards() {
               <CardContent>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {skinsResults.map((result) => (
-                    <div 
-                      key={result.hole} 
+                    <div
+                      key={result.hole}
                       className="flex items-center justify-between p-2 bg-gray-50 rounded"
                     >
                       <div className="flex items-center gap-2">

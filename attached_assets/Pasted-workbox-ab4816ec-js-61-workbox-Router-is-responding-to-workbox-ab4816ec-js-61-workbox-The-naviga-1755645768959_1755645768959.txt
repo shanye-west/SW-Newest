@@ -1,0 +1,49 @@
+workbox-ab4816ec.js:61 workbox Router is responding to: /
+workbox-ab4816ec.js:61 workbox The navigation route /tournaments/cmej3jx540007t53166a6uzas is not being used, since the URL being navigated to doesn't match the allowlist.
+workbox-ab4816ec.js:61 workbox Precaching 1 file.
+workbox-ab4816ec.js:61 workbox The navigation route /tournaments/cmej3jx540007t53166a6uzas is not being used, since the URL being navigated to doesn't match the allowlist.
+leaderboards.tsx:50  GET https://645752fc-80d2-4631-8930-82e0ce2effa0-00-1vj1amyjdmvs2.janeway.replit.dev/api/tournaments/cmej3jx540007t53166a6uzas/leaderboards 500 (Internal Server Error)
+fetchLeaderboards @ leaderboards.tsx:50
+(anonymous) @ leaderboards.tsx:39
+commitHookEffectListMount @ chunk-WERSD76P.js?v=84f75496:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=84f75496:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=84f75496:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=84f75496:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=84f75496:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=84f75496:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=84f75496:19447
+commitRootImpl @ chunk-WERSD76P.js?v=84f75496:19416
+commitRoot @ chunk-WERSD76P.js?v=84f75496:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=84f75496:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=84f75496:9119
+(anonymous) @ chunk-WERSD76P.js?v=84f75496:18627
+group-scoring.tsx:106  GET https://645752fc-80d2-4631-8930-82e0ce2effa0-00-1vj1amyjdmvs2.janeway.replit.dev/api/tournaments/cmej3jx540007t53166a6uzas/scores/cmej3kfqv000jt531uxld9ng3 500 (Internal Server Error)
+fetchGroupScoringData @ group-scoring.tsx:106
+(anonymous) @ group-scoring.tsx:177
+commitHookEffectListMount @ chunk-WERSD76P.js?v=84f75496:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=84f75496:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=84f75496:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=84f75496:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=84f75496:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=84f75496:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=84f75496:19447
+commitRootImpl @ chunk-WERSD76P.js?v=84f75496:19416
+commitRoot @ chunk-WERSD76P.js?v=84f75496:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=84f75496:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=84f75496:9119
+(anonymous) @ chunk-WERSD76P.js?v=84f75496:18627
+group-scoring.tsx:106  GET https://645752fc-80d2-4631-8930-82e0ce2effa0-00-1vj1amyjdmvs2.janeway.replit.dev/api/tournaments/cmej3jx540007t53166a6uzas/scores/cmej3kfqv000jt531uxld9ng3 500 (Internal Server Error)
+fetchGroupScoringData @ group-scoring.tsx:106
+(anonymous) @ group-scoring.tsx:177
+commitHookEffectListMount @ chunk-WERSD76P.js?v=84f75496:16915
+commitPassiveMountOnFiber @ chunk-WERSD76P.js?v=84f75496:18156
+commitPassiveMountEffects_complete @ chunk-WERSD76P.js?v=84f75496:18129
+commitPassiveMountEffects_begin @ chunk-WERSD76P.js?v=84f75496:18119
+commitPassiveMountEffects @ chunk-WERSD76P.js?v=84f75496:18109
+flushPassiveEffectsImpl @ chunk-WERSD76P.js?v=84f75496:19490
+flushPassiveEffects @ chunk-WERSD76P.js?v=84f75496:19447
+commitRootImpl @ chunk-WERSD76P.js?v=84f75496:19416
+commitRoot @ chunk-WERSD76P.js?v=84f75496:19277
+performSyncWorkOnRoot @ chunk-WERSD76P.js?v=84f75496:18895
+flushSyncCallbacks @ chunk-WERSD76P.js?v=84f75496:9119
+(anonymous) @ chunk-WERSD76P.js?v=84f75496:18627

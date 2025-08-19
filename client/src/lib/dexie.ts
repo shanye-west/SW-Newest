@@ -1,176 +1,84 @@
-import Dexie, { type EntityTable } from 'dexie';
+// client/src/lib/dexie.ts
+import Dexie, { Table } from "dexie";
 
-// Score queue item for offline storage
-interface ScoreQueueItem {
-  id?: number;
+export interface ScoreUpdate {
   entryId: string;
-  hole: number;
-  strokes: number;
-  clientUpdatedAt: Date; // Local timestamp when user made change
-  synced: number; // 0 = not synced, 1 = synced
+  hole: number; // 1..18
+  strokes: number; // >= 1
+  clientUpdatedAt: number; // ms since epoch
 }
 
-interface SyncedScore {
-  id?: number;
-  entryId: string;
-  hole: number;
-  strokes: number;
-  clientUpdatedAt: Date;
-  serverUpdatedAt: Date;
-}
-
-// Database class
-class GolfDatabase extends Dexie {
-  scoreQueue!: EntityTable<ScoreQueueItem, 'id'>;
-  syncedScores!: EntityTable<SyncedScore, 'id'>;
-
+// One DB class, one instance (guarded for Vite HMR)
+class ScoreDB extends Dexie {
+  scoreQueue!: Table<ScoreUpdate & { id?: number }, number>;
   constructor() {
-    super('GolfDatabase');
+    super("sw-monthly-golf");
     this.version(1).stores({
-      scoreQueue: '++id, entryId, hole, synced',
-      syncedScores: '++id, entryId, hole'
+      // ++id = autoincrement; indexes help ordering by timestamp
+      scoreQueue: "++id, entryId, hole, clientUpdatedAt",
     });
   }
 }
+const g = globalThis as any;
+export const db: ScoreDB = g.__SW_DB ?? (g.__SW_DB = new ScoreDB());
 
-const db = new GolfDatabase();
+/** Queue a score change to be synced later */
+export async function queueScoreUpdate(u: {
+  entryId: string;
+  hole: number;
+  strokes: number;
+  clientUpdatedAt?: number;
+}) {
+  const item: ScoreUpdate = {
+    entryId: u.entryId,
+    hole: u.hole,
+    strokes: u.strokes,
+    clientUpdatedAt: u.clientUpdatedAt ?? Date.now(),
+  };
+  await db.scoreQueue.add(item);
+  return item;
+}
 
-class GolfDatabase extends Dexie {
-  scoreQueue!: EntityTable<ScoreQueueItem, 'id'>;
-  syncedScores!: EntityTable<SyncedScore, 'id'>;
-
-  constructor() {
-    super('GolfPWA');
-    
-    this.version(2).stores({
-      scoreQueue: '++id, entryId, hole, clientUpdatedAt, synced',
-      syncedScores: '++id, [entryId+hole], entryId, hole, clientUpdatedAt'
-    }).upgrade(async trans => {
-      // Handle schema migration if needed
-      await trans.table('scoreQueue').toCollection().modify((item: any) => {
-        if (item.timestamp && !item.clientUpdatedAt) {
-          item.clientUpdatedAt = item.timestamp;
-          delete item.timestamp;
-        }
+/** Try to flush queued scores to the server using LWW */
+export async function flushScoreQueue() {
+  const items = await db.scoreQueue.orderBy("clientUpdatedAt").toArray();
+  for (const it of items) {
+    try {
+      const res = await fetch("/api/hole-scores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(it),
       });
-    });
-  }
-}
-
-export const db = new GolfDatabase();
-
-let isFlushingQueue = false;
-
-/**
- * Queue a score update for offline-first scoring
- */
-export async function queueScoreUpdate(params: { entryId: string; hole: number; strokes: number }) {
-  const { entryId, hole, strokes } = params;
-  const now = new Date();
-  
-  // Remove any existing queue item for this entry/hole to avoid duplicates
-  await db.scoreQueue.where({ entryId, hole }).delete();
-  
-  // Add new queue item
-  await db.scoreQueue.add({
-    entryId,
-    hole,
-    strokes,
-    clientUpdatedAt: now,
-    synced: 0
-  });
-  
-  console.log(`Queued score: entry ${entryId}, hole ${hole}, strokes ${strokes}`);
-}
-
-/**
- * Get count of pending sync items
- */
-export async function getPendingSyncCount(): Promise<number> {
-  return await db.scoreQueue.where('synced').equals(0).count();
-}
-
-/**
- * Check if queue flush is currently in progress
- */
-export function isFlushInProgress(): boolean {
-  return isFlushingQueue;
-}
-
-/**
- * Flush pending score updates to server
- */
-export async function flushScoreQueue(onRefetchNeeded?: () => Promise<void>): Promise<void> {
-  if (isFlushingQueue || !navigator.onLine) {
-    return;
-  }
-  
-  isFlushingQueue = true;
-  console.log('Starting queue flush...');
-  
-  try {
-    const pendingItems = await db.scoreQueue.where('synced').equals(0).toArray();
-    
-    if (pendingItems.length === 0) {
-      console.log('No pending items to sync');
-      return;
-    }
-    
-    console.log(`Flushing ${pendingItems.length} pending score updates`);
-    let refetchNeeded = false;
-    
-    // Process items individually to handle Last-Write-Wins properly
-    for (const item of pendingItems) {
-      try {
-        const response = await fetch('/api/scores', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            entryId: item.entryId,
-            hole: item.hole,
-            strokes: item.strokes,
-            clientUpdatedAt: item.clientUpdatedAt.toISOString()
-          })
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          
-          if (result.status === 'accepted') {
-            console.log(`Score accepted: entry ${item.entryId}, hole ${item.hole}`);
-            // Remove from queue
-            await db.scoreQueue.delete(item.id!);
-          } else if (result.status === 'ignored') {
-            console.log(`Score ignored (stale): entry ${item.entryId}, hole ${item.hole}`);
-            // Remove from queue and mark for refetch
-            await db.scoreQueue.delete(item.id!);
-            refetchNeeded = true;
-          }
-        } else {
-          console.error(`Failed to sync score for entry ${item.entryId}, hole ${item.hole}:`, response.status);
-          // Keep in queue for retry
-        }
-      } catch (error) {
-        console.error(`Error syncing score for entry ${item.entryId}, hole ${item.hole}:`, error);
-        // Keep in queue for retry
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && (json.status === "accepted" || json.status === "ignored")) {
+        // remove this item from the queue (synced or rejected as stale)
+        await db.scoreQueue
+          .where({ entryId: it.entryId, hole: it.hole, clientUpdatedAt: it.clientUpdatedAt })
+          .delete();
+      } else {
+        // invalid or server error — stop and retry later
+        break;
       }
+    } catch {
+      // offline — stop and retry later
+      break;
     }
-    
-    // If any scores were ignored due to staleness, trigger refetch
-    if (refetchNeeded && onRefetchNeeded) {
-      console.log('Triggering refetch due to stale scores');
-      await onRefetchNeeded();
-    }
-    
-  } catch (error) {
-    console.error('Error during queue flush:', error);
-  } finally {
-    isFlushingQueue = false;
-    console.log('Queue flush completed');
   }
 }
 
-export { db };
-export type { ScoreQueueItem, SyncedScore };
+/** Count items waiting to sync */
+export async function pendingCount(): Promise<number> {
+  return db.scoreQueue.count();
+}
+
+/* ---------- Back-compat aliases (fixes “does not provide an export named 'getPendingSyncCount'”) ---------- */
+
+/** Old name used elsewhere in your app */
+export async function getPendingSyncCount(): Promise<number> {
+  return pendingCount();
+}
+
+/** If any code imports `flushQueue`, keep it working */
+export async function flushQueue() {
+  return flushScoreQueue();
+}
