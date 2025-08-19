@@ -764,6 +764,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get scores for a specific group (for refetch after conflicts)
+  app.get('/api/groups/:groupId/scores', async (req, res) => {
+    try {
+      const { groupId } = req.params;
+      
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          entries: {
+            include: {
+              holeScores: true
+            }
+          }
+        }
+      });
+
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+
+      // Return scores in the format expected by client
+      const scores: { [entryId: string]: { [hole: number]: number } } = {};
+      group.entries.forEach(entry => {
+        scores[entry.id] = entry.holeScores.reduce((acc, score) => {
+          acc[score.hole] = score.strokes;
+          return acc;
+        }, {} as { [hole: number]: number });
+      });
+
+      res.json({ scores });
+    } catch (error) {
+      console.error('Error fetching group scores:', error);
+      res.status(500).json({ error: 'Failed to fetch group scores' });
+    }
+  });
+
   // Helper function to compute tournament results
   async function computeResults(tournamentId: string) {
     const tournament = await prisma.tournament.findUnique({
@@ -922,6 +958,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error generating share token:', error);
       res.status(500).json({ error: 'Failed to generate share token' });
+    }
+  });
+
+  // Conflict tracking (in-memory ring buffer)
+  const conflictBuffer: Array<{
+    entryId: string;
+    hole: number;
+    incomingStrokes: number;
+    incomingAt: Date;
+    storedStrokes: number;
+    storedAt: Date;
+  }> = [];
+  const CONFLICT_BUFFER_SIZE = 200;
+
+  function addConflict(conflict: {
+    entryId: string;
+    hole: number;
+    incomingStrokes: number;
+    incomingAt: Date;
+    storedStrokes: number;
+    storedAt: Date;
+  }) {
+    conflictBuffer.push(conflict);
+    if (conflictBuffer.length > CONFLICT_BUFFER_SIZE) {
+      conflictBuffer.shift(); // Remove oldest
+    }
+  }
+
+  // Single score endpoint with Last-Write-Wins
+  app.post('/api/scores', async (req, res) => {
+    try {
+      const { entryId, hole, strokes, clientUpdatedAt } = req.body;
+      
+      if (!entryId || !hole || strokes === undefined || !clientUpdatedAt) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const incomingTimestamp = new Date(clientUpdatedAt);
+      const now = new Date();
+
+      // Check if there's an existing score for this entry/hole
+      const existingScore = await prisma.holeScore.findUnique({
+        where: {
+          entryId_hole: {
+            entryId,
+            hole: parseInt(hole)
+          }
+        }
+      });
+
+      // Last-Write-Wins: compare timestamps
+      if (existingScore && existingScore.clientUpdatedAt && existingScore.clientUpdatedAt > incomingTimestamp) {
+        // Incoming score is stale, ignore it and log conflict
+        addConflict({
+          entryId,
+          hole: parseInt(hole),
+          incomingStrokes: parseInt(strokes),
+          incomingAt: incomingTimestamp,
+          storedStrokes: existingScore.strokes,
+          storedAt: existingScore.clientUpdatedAt
+        });
+
+        console.log(`Score ignored (stale): entry ${entryId}, hole ${hole}, incoming: ${strokes}@${incomingTimestamp}, stored: ${existingScore.strokes}@${existingScore.clientUpdatedAt}`);
+        
+        return res.json({ 
+          status: 'ignored', 
+          reason: 'stale',
+          storedScore: {
+            strokes: existingScore.strokes,
+            updatedAt: existingScore.clientUpdatedAt
+          }
+        });
+      }
+
+      // Accept the score (either new or newer)
+      const holeScore = await prisma.holeScore.upsert({
+        where: {
+          entryId_hole: {
+            entryId,
+            hole: parseInt(hole)
+          }
+        },
+        update: {
+          strokes: parseInt(strokes),
+          clientUpdatedAt: incomingTimestamp,
+          updatedAt: now
+        },
+        create: {
+          entryId,
+          hole: parseInt(hole),
+          strokes: parseInt(strokes),
+          clientUpdatedAt: incomingTimestamp,
+          updatedAt: now
+        }
+      });
+
+      console.log(`Score accepted: entry ${entryId}, hole ${hole}, strokes: ${strokes}`);
+      
+      res.json({ 
+        status: 'accepted',
+        score: {
+          strokes: holeScore.strokes,
+          clientUpdatedAt: holeScore.clientUpdatedAt,
+          updatedAt: holeScore.updatedAt
+        }
+      });
+
+    } catch (error) {
+      console.error('Error saving score:', error);
+      res.status(500).json({ error: 'Failed to save score' });
+    }
+  });
+
+  // Get recent conflicts for admin review
+  app.get('/api/admin/conflicts/recent', async (req, res) => {
+    try {
+      res.json({ conflicts: conflictBuffer });
+    } catch (error) {
+      console.error('Error fetching conflicts:', error);
+      res.status(500).json({ error: 'Failed to fetch conflicts' });
     }
   });
 

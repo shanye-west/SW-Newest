@@ -1,0 +1,54 @@
+Goal: Wire the Score screen to the offline queue + server sync with Last-Write-Wins, add a visible sync status/indicator, and load existing scores for the group on mount. ONE cohesive feature → ONE checkpoint.
+
+Stack to follow: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + Dexie + vite-plugin-pwa.
+
+Scope (implement exactly this; keep diffs tight):
+
+1) Client — Score screen hookup
+- Import and use the existing helpers:
+  - `queueScoreUpdate({ entryId, hole, strokes })` when +/- is tapped.
+  - On mount, fetch `/api/groups/:groupId/scores` and prefill the local UI with existing strokes.
+- Add a small sync UI:
+  - A compact status chip in the Score screen header that shows one of:
+    - “All changes synced” (queue empty)
+    - “Syncing…” (flush in progress)
+    - “Offline – will sync” (navigator.onLine = false)
+  - The chip updates automatically as connectivity changes or flush completes.
+- Optimistic UI:
+  - When +/- is tapped, update the UI immediately and queue the change; do not wait for server response.
+
+2) Client — background flush improvements
+- Ensure `flushScoreQueue()` runs:
+  - on app start,
+  - when coming back online,
+  - every 10s while there are pending items.
+- If the server returns `{ status: "ignored" }` for a queued item (stale), update the UI by refetching `/api/groups/:groupId/scores` so the user sees the winning value.
+
+3) Server — scores endpoints (confirm/extend)
+- Keep `POST /api/scores` behavior: upsert HoleScore with LWW using `clientUpdatedAt`.
+- Keep `GET /api/groups/:groupId/scores` returning shape `{ scores: { [entryId]: { [hole]: strokes } } }`.
+- Add lightweight “conflict tap” for later admin review (in-memory only):
+  - If an incoming POST is ignored as stale, push an entry into a ring buffer (size 200) with `{ entryId, hole, incomingStrokes, incomingAt, storedStrokes, storedAt }`.
+  - Expose `GET /api/admin/conflicts/recent` (auth not required yet; we’ll lock it later) to return the buffer. (No UI change now—just the API.)
+
+4) Tests (Vitest)
+- Unit test a pure “derive sync status” function that takes `{ online: boolean, queueLength: number, isFlushing: boolean }` and returns one of `synced | syncing | offline`.
+- Integration-ish test for the Dexie queue/flush logic can be a small module test that simulates:
+  - queue 2 items → flush() calls fetch twice,
+  - returns accepted → queue empties;
+  - returns ignored → queue item is removed and a refetch function is called (mocked).
+  (If browser APIs are awkward in Vitest, isolate the logic behind a small function you can test.)
+
+UX/DX
+- Mobile-first; keep UI subtle (a small pill in the header).
+- Do not alter unrelated pages or styles.
+- Update README: how offline scoring works, what the status chip means.
+
+Acceptance (before creating the single checkpoint):
+- Score +/- immediately updates UI and enqueues the change.
+- Going offline → +/- still works; coming back online flushes and server persists changes.
+- When two devices edit the same (entry,hole), the later timestamp wins; the stale device’s queued item is dropped and the UI refreshes to the server value.
+- Status chip reflects “Offline – will sync”, “Syncing…”, and “All changes synced” appropriately.
+- `GET /api/admin/conflicts/recent` returns recent ignored updates (ring buffer).
+- Lint/tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.
