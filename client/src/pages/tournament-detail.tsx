@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
+import { useRoute, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus } from 'lucide-react';
+import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateHandicaps, recomputeEntryHandicaps } from '../../../lib/handicap';
 import { useTournamentContext } from '../contexts/TournamentContext';
@@ -59,6 +59,7 @@ interface GroupFormData {
 
 export default function TournamentDetail() {
   const [match, params] = useRoute('/tournaments/:id');
+  const [location, setLocation] = useLocation();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const { setActiveTournament } = useTournamentContext();
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
@@ -347,9 +348,11 @@ export default function TournamentDetail() {
       </div>
 
       <Tabs defaultValue="entries" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="entries">Entries</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
+          <TabsTrigger value="leaderboards">Results</TabsTrigger>
+          <TabsTrigger value="scoring">Scoring</TabsTrigger>
         </TabsList>
 
         <TabsContent value="entries" className="space-y-4">
@@ -580,6 +583,14 @@ export default function TournamentDetail() {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => setLocation(`/tournaments/${tournament.id}/score/${group.id}`)}
+                        data-testid={`button-score-group-${group.id}`}
+                      >
+                        <Target className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleEditGroup(group)}
                         data-testid={`button-edit-group-${group.id}`}
                       >
@@ -626,6 +637,78 @@ export default function TournamentDetail() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Leaderboards Tab */}
+        <TabsContent value="leaderboards">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Tournament Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-600">
+                View live leaderboards, USGA tiebreakers, and gross skins results.
+              </p>
+              <Button 
+                onClick={() => setLocation(`/tournaments/${tournament.id}/leaderboards`)}
+                data-testid="button-view-leaderboards"
+              >
+                <Trophy className="w-4 h-4 mr-2" />
+                View Leaderboards
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Scoring Tab */}
+        <TabsContent value="scoring">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                Hole-by-Hole Scoring
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-600">
+                Score rounds hole-by-hole with offline support and automatic sync.
+              </p>
+              {groups.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="font-medium">Select a group to start scoring:</p>
+                  <div className="grid gap-2">
+                    {groups.map(group => (
+                      <Button 
+                        key={group.id}
+                        variant="outline" 
+                        onClick={() => setLocation(`/tournaments/${tournament.id}/score/${group.id}`)}
+                        className="justify-between"
+                        data-testid={`button-score-group-quick-${group.id}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          {group.name} ({group.entries?.length || 0} players)
+                        </span>
+                        {group.teeTime && (
+                          <span className="text-sm text-gray-500">
+                            {new Date(group.teeTime).toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">Create groups first to enable scoring.</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

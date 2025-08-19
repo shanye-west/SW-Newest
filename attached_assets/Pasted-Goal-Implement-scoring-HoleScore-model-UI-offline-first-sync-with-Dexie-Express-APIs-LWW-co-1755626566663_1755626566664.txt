@@ -1,0 +1,47 @@
+Goal: Implement scoring (HoleScore model + UI), offline-first sync with Dexie + Express APIs (LWW conflicts), Gross & Net leaderboards with USGA last 9/6/3/1 ties, and Gross Skins (NO carry) including payouts. One cohesive feature → ONE checkpoint.
+
+Data:
+- Add HoleScore { id, entryId(FK), hole:int(1..18), strokes:int, updatedAt:Date } with unique(entryId, hole).
+- Ensure Entry already has courseHandicap (CH) and playingCH.
+
+Features:
+1) Scoring UI (per Group):
+   - /tournaments/:id/score/:groupId (linked from Groups).
+   - Hole picker (1..18), player rows with +/- and direct input; next/prev hole controls; par reference pulled from Course.
+   - Local-first: write to Dexie (“scoreQueue” with {entryId,hole,strokes,ts}); reflect immediately.
+
+2) Sync:
+   - Background sync worker flushes queue to Express API when online.
+   - Server writes HoleScore and returns canonical {strokes, updatedAt}.
+   - Conflict policy: Last-Write-Wins by (entryId,hole) comparing updatedAt; server responds with final value; client updates view accordingly.
+   - Admin review screen at /tournaments/:id/review showing recent overwrites (from server response metadata) with ability to set a value explicitly (which counts as a fresh write).
+
+3) Leaderboards:
+   - Gross: sum HoleScore.strokes per Entry; show Total and To-Par.
+   - Net: NetTotal = GrossTotal − playingCH; show Gross, CH, playingCH, Net, To-Par.
+   - Ties resolved using USGA method (18 holes only): compare back-9 totals; if tied, last-6; then last-3; then 18th; if still tied, mark “T-#”.
+   - Live updates: recompute on score change; minimal recomputation.
+
+4) Gross Skins (NO carry):
+   - For each hole across all Entries: find lowest UNIQUE gross; if unique → winner gets 1 skin; otherwise push.
+   - UI tab shows per-player skin counts and a per-hole feed like:
+       * “H4: push (2 at 3)” or “H7: Smith (3)”
+   - Payouts: tournament has potAmount and participantsForSkins; payoutPerSkin = potAmount / totalSkins (round to cents); show per-player payout.
+   - If totalSkins = 0, show warning and payoutPerSkin = 0.
+
+Server/API (Express):
+- Endpoints: POST/PUT HoleScore (single & batch), GET leaderboards, GET skins.
+- Implement LWW: compare updatedAt; store server ts; return winner timestamp & whether overwrite occurred.
+
+Tests (Vitest):
+- CH math was covered; add:
+  * USGA tiebreak: multiple scenarios (clear, tie to last-1, fully tied).
+  * Skins: single winner, push, zero-skin tournament, payout calc.
+  * Sync: LWW conflict resolution unit (server util) + client integration that enqueues offline, reconnects, and gets server canonical values.
+
+Acceptance:
+- I can open a group scoring screen, enter scores offline for a few holes, reconnect, and see them synced with LWW applied.
+- Gross & Net leaderboards update and display ties per USGA rule.
+- Skins winners/pushes show correctly; payout is computed when potAmount/participantsForSkins set.
+- Tests & lint pass; README gains a short “Scoring & Sync” section.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

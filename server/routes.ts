@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { prisma } from "../lib/db";
+import { calculateLeaderboards, calculateGrossSkins, calculateSkinsPayouts } from "../lib/scoring";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Players API routes
@@ -472,6 +473,292 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting group:', error);
       res.status(500).json({ error: 'Failed to delete group' });
+    }
+  });
+
+  // HoleScores API routes
+  app.post('/api/hole-scores', async (req, res) => {
+    try {
+      const { entryId, hole, strokes } = req.body;
+      
+      if (!entryId || !hole || !strokes) {
+        return res.status(400).json({ error: 'entryId, hole, and strokes are required' });
+      }
+
+      if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) {
+        return res.status(400).json({ error: 'Invalid hole (1-18) or strokes (1-15)' });
+      }
+
+      // Use upsert to handle Last-Write-Wins
+      const existingScore = await prisma.holeScore.findFirst({
+        where: { entryId, hole: parseInt(hole) }
+      });
+
+      const now = new Date();
+      let wasOverwritten = false;
+
+      if (existingScore) {
+        // Check for conflicts based on timing
+        const clientUpdatedAt = req.body.updatedAt ? new Date(req.body.updatedAt) : now;
+        
+        if (existingScore.updatedAt > clientUpdatedAt) {
+          // Server is newer, reject client update
+          return res.json({
+            strokes: existingScore.strokes,
+            updatedAt: existingScore.updatedAt,
+            wasOverwritten: true
+          });
+        }
+        wasOverwritten = clientUpdatedAt < existingScore.updatedAt;
+      }
+
+      const holeScore = await prisma.holeScore.upsert({
+        where: {
+          entryId_hole: {
+            entryId,
+            hole: parseInt(hole)
+          }
+        },
+        update: {
+          strokes: parseInt(strokes),
+          updatedAt: now
+        },
+        create: {
+          entryId,
+          hole: parseInt(hole),
+          strokes: parseInt(strokes),
+          updatedAt: now
+        }
+      });
+
+      res.json({
+        strokes: holeScore.strokes,
+        updatedAt: holeScore.updatedAt,
+        wasOverwritten
+      });
+    } catch (error) {
+      console.error('Error saving hole score:', error);
+      res.status(500).json({ error: 'Failed to save hole score' });
+    }
+  });
+
+  app.post('/api/hole-scores/batch', async (req, res) => {
+    try {
+      const { scores } = req.body; // Array of {entryId, hole, strokes, updatedAt}
+      
+      if (!Array.isArray(scores)) {
+        return res.status(400).json({ error: 'scores must be an array' });
+      }
+
+      const results = [];
+      
+      for (const score of scores) {
+        const { entryId, hole, strokes } = score;
+        
+        if (!entryId || !hole || !strokes) continue;
+        if (hole < 1 || hole > 18 || strokes < 1 || strokes > 15) continue;
+
+        try {
+          const existingScore = await prisma.holeScore.findFirst({
+            where: { entryId, hole: parseInt(hole) }
+          });
+
+          const now = new Date();
+          const clientUpdatedAt = score.updatedAt ? new Date(score.updatedAt) : now;
+          let wasOverwritten = false;
+
+          if (existingScore && existingScore.updatedAt > clientUpdatedAt) {
+            results.push({
+              entryId,
+              hole: parseInt(hole),
+              strokes: existingScore.strokes,
+              updatedAt: existingScore.updatedAt,
+              wasOverwritten: true
+            });
+            continue;
+          }
+
+          const holeScore = await prisma.holeScore.upsert({
+            where: {
+              entryId_hole: {
+                entryId,
+                hole: parseInt(hole)
+              }
+            },
+            update: {
+              strokes: parseInt(strokes),
+              updatedAt: now
+            },
+            create: {
+              entryId,
+              hole: parseInt(hole),
+              strokes: parseInt(strokes),
+              updatedAt: now
+            }
+          });
+
+          results.push({
+            entryId,
+            hole: parseInt(hole),
+            strokes: holeScore.strokes,
+            updatedAt: holeScore.updatedAt,
+            wasOverwritten
+          });
+        } catch (err) {
+          console.error(`Error processing score for entry ${entryId} hole ${hole}:`, err);
+        }
+      }
+
+      res.json({ results });
+    } catch (error) {
+      console.error('Error batch saving hole scores:', error);
+      res.status(500).json({ error: 'Failed to batch save hole scores' });
+    }
+  });
+
+  app.get('/api/tournaments/:id/leaderboards', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: {
+          course: true,
+          entries: {
+            include: {
+              player: true,
+              holeScores: true
+            }
+          }
+        }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Generate hole pars array (simplified - assume par 4 for all holes)
+      const holePars = Array(18).fill(4);
+      
+      // Calculate leaderboards using scoring utility
+      const leaderboards = calculateLeaderboards(tournament.entries, tournament.course.par);
+
+      res.json({
+        gross: leaderboards.gross,
+        net: leaderboards.net,
+        coursePar: tournament.course.par,
+        updated: new Date()
+      });
+    } catch (error) {
+      console.error('Error fetching leaderboards:', error);
+      res.status(500).json({ error: 'Failed to fetch leaderboards' });
+    }
+  });
+
+  app.get('/api/tournaments/:id/skins', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: {
+          course: true,
+          entries: {
+            include: {
+              player: true,
+              holeScores: true
+            }
+          }
+        }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Generate hole pars array (simplified)
+      const holePars = Array(18).fill(4);
+      
+      // Calculate skins
+      const skinsData = calculateGrossSkins(tournament.entries, tournament.course.par, holePars);
+      
+      // Calculate payouts if pot amount is set
+      let leaderboard = skinsData.leaderboard;
+      if (tournament.potAmount && tournament.participantsForSkins) {
+        leaderboard = calculateSkinsPayouts(
+          skinsData.leaderboard, 
+          tournament.potAmount, 
+          skinsData.totalSkins
+        );
+      }
+
+      res.json({
+        results: skinsData.results,
+        leaderboard,
+        totalSkins: skinsData.totalSkins,
+        potAmount: tournament.potAmount,
+        participantsForSkins: tournament.participantsForSkins,
+        payoutPerSkin: tournament.potAmount && skinsData.totalSkins > 0 
+          ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) / 100 
+          : 0
+      });
+    } catch (error) {
+      console.error('Error fetching skins:', error);
+      res.status(500).json({ error: 'Failed to fetch skins' });
+    }
+  });
+
+  app.get('/api/tournaments/:id/scores/:groupId', async (req, res) => {
+    try {
+      const { id, groupId } = req.params;
+      
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          tournament: {
+            include: { course: true }
+          },
+          entries: {
+            include: {
+              player: true,
+              holeScores: true
+            }
+          }
+        }
+      });
+
+      if (!group || group.tournamentId !== id) {
+        return res.status(404).json({ error: 'Group not found in tournament' });
+      }
+
+      res.json({
+        group: {
+          id: group.id,
+          name: group.name,
+          teeTime: group.teeTime
+        },
+        tournament: {
+          id: group.tournament.id,
+          name: group.tournament.name,
+          course: {
+            name: group.tournament.course.name,
+            par: group.tournament.course.par
+          }
+        },
+        entries: group.entries.map(entry => ({
+          id: entry.id,
+          player: entry.player,
+          courseHandicap: entry.courseHandicap,
+          playingCH: entry.playingCH,
+          holeScores: entry.holeScores.reduce((acc, score) => {
+            acc[score.hole] = score.strokes;
+            return acc;
+          }, {} as { [hole: number]: number })
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching group scores:', error);
+      res.status(500).json({ error: 'Failed to fetch group scores' });
     }
   });
 

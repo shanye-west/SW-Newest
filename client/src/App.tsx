@@ -9,6 +9,8 @@ import PlayersPage from "./pages/players";
 import CoursesPage from "./pages/courses";
 import TournamentsPage from "./pages/tournaments";
 import TournamentDetail from "./pages/tournament-detail";
+import GroupScoring from "./pages/group-scoring";
+import Leaderboards from "./pages/leaderboards";
 import AppHeader from "./components/AppHeader";
 import { TournamentProvider } from "./contexts/TournamentContext";
 
@@ -20,6 +22,8 @@ function Router() {
       <Route path="/courses" component={CoursesPage} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
+      <Route path="/tournaments/:tournamentId/score/:groupId" component={GroupScoring} />
+      <Route path="/tournaments/:id/leaderboards" component={Leaderboards} />
       <Route component={NotFound} />
     </Switch>
   );
