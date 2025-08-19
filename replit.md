@@ -2,11 +2,24 @@
 
 ## Tech & Platform
 
-- Next.js (App Router) + TypeScript
+- Vite + Express + TypeScript (full-stack)
 - Tailwind + shadcn/ui (mobile-first)
 - Prisma + SQLite (server DB)
-- Dexie (IndexedDB) for offline scoring; background sync on reconnect
-- PWA via next-pwa (manifest + service worker)
+- Wouter for client-side routing
+- React Query for API state management
+- Comprehensive admin CRUD system implemented
+
+## Current Status (January 2025)
+
+- ✅ Database schema and migrations complete
+- ✅ Admin dashboard with navigation working
+- ✅ Players CRUD system fully functional
+- ✅ Courses CRUD system implemented
+- ✅ Tournaments management in progress
+- ✅ API routes for all entities working
+- ✅ Mobile-first responsive design
+- 🔄 Groups management pending
+- 🔄 PWA features and offline capabilities pending
 
 ## Functional Rules (to follow in subsequent tasks)
 
