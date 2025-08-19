@@ -14,6 +14,7 @@ import Leaderboards from "./pages/leaderboards";
 import PublicResults from "./pages/public-results";
 import PublicKiosk from "./pages/public-kiosk";
 import AdminConflicts from "./pages/admin-conflicts";
+import { CourseHolesPage } from "./pages/course-holes";
 import AppHeader from "./components/AppHeader";
 import { TournamentProvider } from "./contexts/TournamentContext";
 
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/" component={AdminDashboard} />
       <Route path="/players" component={PlayersPage} />
       <Route path="/courses" component={CoursesPage} />
+      <Route path="/courses/:id/holes" component={CourseHolesPage} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route path="/tournaments/:tournamentId/score/:groupId" component={GroupScoring} />

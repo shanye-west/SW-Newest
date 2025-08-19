@@ -22,6 +22,7 @@
 ✅ **Gross Skins payout calculation and display** **completed** (admin + public leaderboards)
 ✅ **Admin Conflicts Review dashboard** **completed** (enhanced server tracking, authentication)
 ✅ **Public Kiosk/TV mode** **completed** (auto-rotation, large type, QR sharing, fullscreen)
+✅ **TRUE Net tiebreaker system** **completed** (per-hole SI & Par, net segment calculations, comprehensive tests)
 
 ## Functional Rules (to follow in subsequent tasks)
 

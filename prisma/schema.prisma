@@ -31,8 +31,22 @@ model Course {
   createdAt   DateTime  @default(now())
 
   tournaments Tournament[]
+  holes       CourseHole[]
 
   @@map("courses")
+}
+
+model CourseHole {
+  id          String  @id @default(cuid())
+  courseId    String
+  hole        Int     // 1..18
+  par         Int     // 3..6 (allow 3..6 for flexibility)
+  strokeIndex Int     // 1..18 (unique within course)
+  course      Course  @relation(fields: [courseId], references: [id])
+
+  @@unique([courseId, hole])
+  @@unique([courseId, strokeIndex])
+  @@map("course_holes")
 }
 
 model Tournament {

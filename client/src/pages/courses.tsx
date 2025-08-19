@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Settings } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 
 interface Course {
@@ -34,6 +35,7 @@ export default function CoursesPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     fetchCourses();
@@ -243,6 +245,15 @@ export default function CoursesPage() {
                   {course.name}
                 </h3>
                 <div className="flex space-x-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLocation(`/courses/${course.id}/holes`)}
+                    data-testid={`button-edit-holes-${course.id}`}
+                    title="Edit Holes"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"

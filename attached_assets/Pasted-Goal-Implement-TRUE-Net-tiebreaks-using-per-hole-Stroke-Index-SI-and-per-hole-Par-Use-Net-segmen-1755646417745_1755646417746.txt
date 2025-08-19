@@ -1,0 +1,79 @@
+Goal: Implement TRUE Net tiebreaks using per-hole Stroke Index (SI) and per-hole Par. Use Net segment sums (last 9 → last 6 → last 3 → 18th) for Net ties. Keep Gross tiebreaks on Gross segments. ONE cohesive feature → ONE checkpoint. Keep diffs tight and reuse current endpoints.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa + Dexie.
+
+IMPORTANT: Do NOT rename existing tables/fields or scoring endpoints already in use (/api/hole-scores etc.). Just add what’s needed for hole data + net tiebreak.
+
+1) Prisma (DB)
+- Add CourseHole model:
+  model CourseHole {
+    id         String  @id @default(cuid())
+    courseId   String
+    hole       Int     // 1..18
+    par        Int     // 3..5 (allow 3..6 for flexibility)
+    strokeIndex Int    // 1..18 (unique within course)
+    course     Course  @relation(fields: [courseId], references: [id])
+
+    @@unique([courseId, hole])
+    @@unique([courseId, strokeIndex])
+  }
+- Migration only; do NOT drop data.
+- Backfill script (npm run backfill:holes): For every Course that has no CourseHole rows, create 18 rows with:
+  - hole = 1..18
+  - par defaults (use [4,4,4,3,4,4,5,3,4,4,4,3,4,5,4,4,3,4] or 4 as fallback)
+  - strokeIndex = 1..18 (placeholder; organizer will edit)
+
+2) Server APIs (minimal, admin + public)
+- GET /api/courses/:id/holes → returns the 18 holes (hole, par, strokeIndex), sorted by hole.
+- PATCH /api/courses/:id/holes → accepts full array of 18 with validation:
+  - holes must be 1..18 exactly once
+  - strokeIndex must be 1..18 permutation (unique)
+  - par must be 3..6
+- Public: no new endpoint needed (tie logic is server-side in results).
+
+3) Admin UI — Course Holes Editor
+- New route: /courses/:id/holes
+- Grid of 18 rows: Hole #, Par (select 3..6), Stroke Index (select 1..18). Save button enabled only if valid permutation of SI.
+- Inline validation messages (e.g., “Stroke Index must be unique 1–18”).
+- Link from Courses list: “Edit Holes”.
+
+4) Results service (computeResults) — TRUE Net tiebreak
+- Keep current totals:
+  - Gross total = sum(strokes)
+  - Net total = gross − playingCH (stored on Entry)
+- For **Gross leaderboard** ties: keep existing Gross segment comparator (back9, last6, last3, 18th) on GROSS hole sums.
+- For **Net leaderboard** ties: replace comparator to use **NET per-hole segments**, computed as:
+  - strokesReceivedPerHole(entry.playingCH, holeSI):
+      base = floor(playingCH / 18)
+      extra = (holeSI <= (playingCH % 18)) ? 1 : 0
+      received = base + extra
+  - netHole = max(1, grossHole − received)   // clamp to ≥1 to avoid 0s
+  - For segments (back9, last6, last3, [18]), sum netHole over those holes and compare lower sum as better.
+- If a Course is missing any CourseHole rows or SI isn’t a 1..18 permutation:
+  - Fallback to current approximation (Gross segments) for Net ties
+  - Include an `warnings: ["course_holes_incomplete"]` array in results JSON so admin UI can show a light warning badge.
+
+5) Tests (Vitest)
+- strokesReceivedPerHole:
+  - playingCH = 0 → all received = 0
+  - playingCH = 5 → exactly SI {1..5} get 1, others 0
+  - playingCH = 18 → all get 1
+- Net tiebreak:
+  - Two entries with same Net total; different distribution on back 9; verify winner per Net segments.
+  - If holes missing SI → comparator falls back (and sets warnings).
+- Validation:
+  - PATCH /api/courses/:id/holes rejects duplicates in strokeIndex and invalid par.
+
+6) UI polish
+- On Net leaderboard, you do NOT need to display per-hole net—only use it for tie logic.
+- If results.warnings contains "course_holes_incomplete", show a small admin-only hint on the tournament page: “Net ties currently using Gross segments — fill Course Holes to enable true Net tiebreak.”
+
+7) Docs
+- README: “Course Holes & Net Tiebreaks” section: how to set SI, how net strokes are allocated, and that ties use last 9/6/3/1 on NET segments.
+
+Acceptance (must pass before creating the single checkpoint):
+- I can edit a course’s 18 holes (pars + stroke index); validation enforces a 1..18 SI permutation.
+- Net leaderboard ties are resolved using NET segment sums (last 9/6/3/1), while Gross uses GROSS segments.
+- If SI/par missing or invalid, Net tiebreak falls back and admin sees a warning.
+- Tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

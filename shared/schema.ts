@@ -1,6 +1,6 @@
 // Drizzle schema for SW Monthly Golf PWA
 
-import { text, integer, real, sqliteTable } from "drizzle-orm/sqlite-core";
+import { text, integer, real, sqliteTable, unique } from "drizzle-orm/sqlite-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,6 +22,18 @@ export const courses = sqliteTable("courses", {
   rating: real("rating").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
+
+// CourseHole table
+export const courseHoles = sqliteTable("course_holes", {
+  id: text("id").primaryKey(),
+  courseId: text("course_id").notNull(),
+  hole: integer("hole").notNull(), // 1..18
+  par: integer("par").notNull(), // 3..6
+  strokeIndex: integer("stroke_index").notNull(), // 1..18 (unique within course)
+}, (table) => ({
+  courseHoleUnique: unique("course_hole_unique").on(table.courseId, table.hole),
+  courseStrokeIndexUnique: unique("course_stroke_index_unique").on(table.courseId, table.strokeIndex),
+}));
 
 // Tournament table
 export const tournaments = sqliteTable("tournaments", {
@@ -131,6 +143,15 @@ export const insertAuditEventSchema = createInsertSchema(auditEvents, {
   createdAt: true,
 });
 
+export const insertCourseHoleSchema = createInsertSchema(courseHoles, {
+  courseId: z.string().min(1, "Course ID is required"),
+  hole: z.number().int().min(1).max(18),
+  par: z.number().int().min(3).max(6),
+  strokeIndex: z.number().int().min(1).max(18),
+}).omit({
+  id: true,
+});
+
 // Select schemas
 export const selectPlayerSchema = createSelectSchema(players);
 export const selectCourseSchema = createSelectSchema(courses);
@@ -139,6 +160,7 @@ export const selectGroupSchema = createSelectSchema(groups);
 export const selectEntrySchema = createSelectSchema(entries);
 export const selectHoleScoreSchema = createSelectSchema(holeScores);
 export const selectAuditEventSchema = createSelectSchema(auditEvents);
+export const selectCourseHoleSchema = createSelectSchema(courseHoles);
 
 // Types
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
@@ -148,6 +170,7 @@ export type InsertGroup = z.infer<typeof insertGroupSchema>;
 export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertHoleScore = z.infer<typeof insertHoleScoreSchema>;
 export type InsertAuditEvent = z.infer<typeof insertAuditEventSchema>;
+export type InsertCourseHole = z.infer<typeof insertCourseHoleSchema>;
 
 export type Player = z.infer<typeof selectPlayerSchema>;
 export type Course = z.infer<typeof selectCourseSchema>;
@@ -156,10 +179,15 @@ export type Group = z.infer<typeof selectGroupSchema>;
 export type Entry = z.infer<typeof selectEntrySchema>;
 export type HoleScore = z.infer<typeof selectHoleScoreSchema>;
 export type AuditEvent = z.infer<typeof selectAuditEventSchema>;
+export type CourseHole = z.infer<typeof selectCourseHoleSchema>;
 
 // Extended types for UI
 export type TournamentWithCourse = Tournament & {
   course: Course;
+};
+
+export type CourseWithHoles = Course & {
+  holes: CourseHole[];
 };
 
 export type EntryWithPlayer = Entry & {
@@ -171,7 +199,7 @@ export type GroupWithEntries = Group & {
 };
 
 export type EntryWithPlayerAndScores = EntryWithPlayer & {
-  holeScores: HoleScore[];
+  scores: HoleScore[];
 };
 
 export type LeaderboardEntry = {

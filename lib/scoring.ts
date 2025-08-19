@@ -1,4 +1,5 @@
-import type { LeaderboardEntry, SkinsResult, SkinsLeaderboard, HoleScore, EntryWithPlayerAndScores } from '../shared/schema';
+import type { LeaderboardEntry, SkinsResult, SkinsLeaderboard, HoleScore, EntryWithPlayerAndScores, CourseHole } from '../shared/schema';
+import { validateCourseHoles, compareNetTiebreaker, compareGrossSegments } from './net-tiebreaker';
 
 /**
  * USGA Tiebreaker for 18-hole tournaments
@@ -63,12 +64,22 @@ export function resolveUSGATiebreaker(
 }
 
 /**
- * Calculate leaderboards with USGA tiebreaking
+ * Calculate leaderboards with TRUE Net tiebreaking
  */
 export function calculateLeaderboards(
   entries: EntryWithPlayerAndScores[],
-  coursePar: number
-): { gross: LeaderboardEntry[]; net: LeaderboardEntry[] } {
+  coursePar: number,
+  courseHoles?: CourseHole[]
+): { gross: LeaderboardEntry[]; net: LeaderboardEntry[]; warnings?: string[] } {
+  const warnings: string[] = [];
+  
+  // Validate course holes for Net tiebreaking
+  const { isValid: courseHolesValid, warnings: courseWarnings } = courseHoles 
+    ? validateCourseHoles(courseHoles) 
+    : { isValid: false, warnings: ['course_holes_incomplete'] };
+  
+  warnings.push(...courseWarnings);
+
   const leaderboardEntries: LeaderboardEntry[] = entries.map(entry => {
     const holeScoresMap: { [hole: number]: number } = {};
     entry.scores.forEach(score => {
@@ -124,13 +135,22 @@ export function calculateLeaderboards(
     });
   }
 
-  // Sort and assign positions for net (similar process)
+  // Sort and assign positions for net using TRUE Net tiebreaker
   const netSorted = [...leaderboardEntries].sort((a, b) => {
     const netDiff = a.netTotal - b.netTotal;
     if (netDiff !== 0) return netDiff;
     
-    // Use same USGA tiebreaker but for net scores
-    return resolveUSGATiebreaker([a, b])[0] === a ? -1 : 1;
+    // Use TRUE Net tiebreaker if course holes are available, otherwise fallback to Gross segments
+    if (courseHoles && courseHolesValid) {
+      return compareNetTiebreaker(
+        { holeScores: a.holeScores, playingCH: a.playingCH },
+        { holeScores: b.holeScores, playingCH: b.playingCH },
+        courseHoles
+      );
+    } else {
+      // Fallback to gross segments for Net ties
+      return compareGrossSegments(a.holeScores, b.holeScores);
+    }
   });
 
   currentPos = 1;
@@ -156,10 +176,13 @@ export function calculateLeaderboards(
     });
   }
 
-  return {
-    gross: grossSorted,
-    net: netSorted
+  const result = { 
+    gross: grossSorted, 
+    net: netSorted,
+    ...(warnings.length > 0 && { warnings })
   };
+
+  return result;
 }
 
 /**

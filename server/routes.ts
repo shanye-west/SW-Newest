@@ -242,6 +242,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Course holes routes
+  app.get("/api/courses/:id/holes", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const holes = await prisma.courseHole.findMany({
+        where: { courseId: id },
+        orderBy: { hole: "asc" },
+      });
+      res.json(holes);
+    } catch (error) {
+      console.error("Error fetching course holes:", error);
+      res.status(500).json({ error: "Failed to fetch course holes" });
+    }
+  });
+
+  app.patch("/api/courses/:id/holes", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { holes } = req.body;
+
+      // Validate input
+      if (!Array.isArray(holes) || holes.length !== 18) {
+        return res.status(400).json({ error: "Must provide exactly 18 holes" });
+      }
+
+      // Validate hole numbers and stroke indexes
+      const holeNumbers = holes.map(h => h.hole).sort((a, b) => a - b);
+      const strokeIndexes = holes.map(h => h.strokeIndex).sort((a, b) => a - b);
+      const expected = Array.from({ length: 18 }, (_, i) => i + 1);
+
+      if (JSON.stringify(holeNumbers) !== JSON.stringify(expected)) {
+        return res.status(400).json({ error: "Hole numbers must be exactly 1-18" });
+      }
+
+      if (JSON.stringify(strokeIndexes) !== JSON.stringify(expected)) {
+        return res.status(400).json({ error: "Stroke indexes must be a unique permutation of 1-18" });
+      }
+
+      // Validate par values
+      const invalidPars = holes.filter(h => h.par < 3 || h.par > 6);
+      if (invalidPars.length > 0) {
+        return res.status(400).json({ error: "Par values must be between 3 and 6" });
+      }
+
+      // Update holes using transaction
+      await prisma.$transaction(async (tx) => {
+        // Delete existing holes
+        await tx.courseHole.deleteMany({
+          where: { courseId: id },
+        });
+
+        // Create new holes
+        await tx.courseHole.createMany({
+          data: holes.map(hole => ({
+            courseId: id,
+            hole: hole.hole,
+            par: hole.par,
+            strokeIndex: hole.strokeIndex,
+          })),
+        });
+      });
+
+      // Return updated holes
+      const updatedHoles = await prisma.courseHole.findMany({
+        where: { courseId: id },
+        orderBy: { hole: "asc" },
+      });
+
+      res.json(updatedHoles);
+    } catch (error) {
+      console.error("Error updating course holes:", error);
+      res.status(500).json({ error: "Failed to update course holes" });
+    }
+  });
+
   // Tournaments API routes
   app.get("/api/tournaments", async (req, res) => {
     try {
@@ -791,7 +866,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tournament = await prisma.tournament.findUnique({
         where: { id },
         include: {
-          course: true,
+          course: {
+            include: {
+              holes: {
+                orderBy: { hole: "asc" },
+              },
+            },
+          },
           entries: {
             include: {
               player: true,
@@ -808,10 +889,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate hole pars array (simplified - assume par 4 for all holes)
       const holePars = Array(18).fill(4);
 
-      // Calculate leaderboards using scoring utility
+      // Calculate leaderboards using scoring utility with course holes for TRUE Net tiebreaking
       const leaderboards = calculateLeaderboards(
         tournament.entries,
         tournament.course.par,
+        tournament.course.holes,
       );
 
       res.json({
@@ -819,6 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         net: leaderboards.net,
         coursePar: tournament.course.par,
         updated: new Date(),
+        ...(leaderboards.warnings && { warnings: leaderboards.warnings }),
       });
     } catch (error) {
       console.error("Error fetching leaderboards:", error);
