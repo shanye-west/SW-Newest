@@ -58,6 +58,17 @@ export default function PlayersPage() {
       handicapIndex: formData.handicapIndex ? parseFloat(formData.handicapIndex) : undefined
     };
 
+    // Validate that HI is provided
+    if (!playerData.handicapIndex || playerData.handicapIndex < 0 || playerData.handicapIndex > 54) {
+      toast({
+        title: 'Error',
+        description: 'Valid Handicap Index (0.0 - 54.0) is required',
+        variant: 'destructive'
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const url = editingPlayer ? `/api/players/${editingPlayer.id}` : '/api/players';
       const method = editingPlayer ? 'PUT' : 'POST';
@@ -175,7 +186,7 @@ export default function PlayersPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="handicapIndex">Handicap Index (HI)</Label>
+                <Label htmlFor="handicapIndex">Handicap Index (HI) *</Label>
                 <Input
                   id="handicapIndex"
                   type="number"
@@ -185,8 +196,12 @@ export default function PlayersPage() {
                   value={formData.handicapIndex}
                   onChange={(e) => setFormData({ ...formData, handicapIndex: e.target.value })}
                   placeholder="Enter HI only (0.0 - 54.0)"
+                  required
                   data-testid="input-player-handicap"
                 />
+                <p className="text-xs text-gray-600 mt-1">
+                  Handicap Index is required to participate in tournaments
+                </p>
               </div>
               <div className="flex space-x-2">
                 <Button 

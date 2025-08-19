@@ -14,7 +14,7 @@ interface Tournament {
   courseId: string;
   course?: { name: string };
   netAllowance: number;
-  status: string;
+  passcode: string;
   createdAt: Date;
 }
 
@@ -28,6 +28,7 @@ interface TournamentFormData {
   date: string;
   courseId: string;
   netAllowance: string;
+  passcode?: string;
 }
 
 export default function TournamentsPage() {
@@ -39,7 +40,8 @@ export default function TournamentsPage() {
     name: '',
     date: '',
     courseId: '',
-    netAllowance: '100'
+    netAllowance: '100',
+    passcode: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -82,7 +84,7 @@ export default function TournamentsPage() {
       date: formData.date,
       courseId: formData.courseId,
       netAllowance: parseInt(formData.netAllowance),
-      status: 'upcoming'
+      passcode: formData.passcode?.trim() || undefined
     };
 
     try {
@@ -154,7 +156,7 @@ export default function TournamentsPage() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', date: '', courseId: '', netAllowance: '100' });
+    setFormData({ name: '', date: '', courseId: '', netAllowance: '100', passcode: '' });
     setEditingTournament(null);
     setIsFormOpen(false);
   };
@@ -233,6 +235,16 @@ export default function TournamentsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="passcode">Tournament Passcode</Label>
+                <Input
+                  id="passcode"
+                  value={formData.passcode || ''}
+                  onChange={(e) => setFormData({ ...formData, passcode: e.target.value })}
+                  placeholder="Auto-generated if left empty"
+                  data-testid="input-tournament-passcode"
+                />
+              </div>
               <div className="flex space-x-2">
                 <Button 
                   type="submit" 
@@ -263,9 +275,9 @@ export default function TournamentsPage() {
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center space-x-2">
                   <Trophy className="w-5 h-5 text-yellow-600" />
-                  <h3 className="font-semibold text-lg" data-testid={`tournament-name-${tournament.id}`}>
+                  <a href={`/tournaments/${tournament.id}`} className="font-semibold text-lg text-blue-600 hover:text-blue-800" data-testid={`tournament-name-${tournament.id}`}>
                     {tournament.name}
-                  </h3>
+                  </a>
                 </div>
                 <div className="flex space-x-1">
                   <Button
@@ -290,14 +302,10 @@ export default function TournamentsPage() {
                 <p><span className="font-medium">Date:</span> {new Date(tournament.date).toLocaleDateString()}</p>
                 <p><span className="font-medium">Course:</span> {tournament.course?.name || 'Unknown'}</p>
                 <p><span className="font-medium">Net Allowance:</span> {tournament.netAllowance}%</p>
-                <p><span className="font-medium">Status:</span> 
-                  <span className={`ml-1 px-2 py-1 rounded text-xs ${
-                    tournament.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                    tournament.status === 'active' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {tournament.status}
-                  </span>
+                <p><span className="font-medium">Passcode:</span> 
+                  <code className="ml-1 px-2 py-1 rounded text-xs bg-gray-100 font-mono">
+                    {tournament.passcode}
+                  </code>
                 </p>
               </div>
               <p className="text-xs text-gray-500 mt-2">

@@ -8,6 +8,7 @@ import AdminDashboard from "./pages/admin-dashboard";
 import PlayersPage from "./pages/players";
 import CoursesPage from "./pages/courses";
 import TournamentsPage from "./pages/tournaments";
+import TournamentDetail from "./pages/tournament-detail";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/players" component={PlayersPage} />
       <Route path="/courses" component={CoursesPage} />
       <Route path="/tournaments" component={TournamentsPage} />
+      <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route component={NotFound} />
     </Switch>
   );

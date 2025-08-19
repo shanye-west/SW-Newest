@@ -24,11 +24,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Name is required' });
       }
 
+      // Enforce HI requirement
+      if (!handicapIndex || handicapIndex < 0 || handicapIndex > 54) {
+        return res.status(400).json({ error: 'Valid Handicap Index (0.0 - 54.0) is required' });
+      }
+
       const player = await prisma.player.create({
         data: {
           name: name.trim(),
           email: email?.trim() || null,
-          handicapIndex: handicapIndex ? parseFloat(handicapIndex) : null
+          handicapIndex: parseFloat(handicapIndex)
         }
       });
       
@@ -48,12 +53,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Name is required' });
       }
 
+      // Enforce HI requirement
+      if (!handicapIndex || handicapIndex < 0 || handicapIndex > 54) {
+        return res.status(400).json({ error: 'Valid Handicap Index (0.0 - 54.0) is required' });
+      }
+
       const player = await prisma.player.update({
         where: { id },
         data: {
           name: name.trim(),
           email: email?.trim() || null,
-          handicapIndex: handicapIndex ? parseFloat(handicapIndex) : null
+          handicapIndex: parseFloat(handicapIndex)
         }
       });
       
@@ -173,7 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/tournaments', async (req, res) => {
     try {
-      const { name, date, courseId, netAllowance, status } = req.body;
+      const { name, date, courseId, netAllowance, passcode } = req.body;
       
       if (!name?.trim() || !date || !courseId) {
         return res.status(400).json({ error: 'Name, date, and course are required' });
@@ -182,10 +192,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tournament = await prisma.tournament.create({
         data: {
           name: name.trim(),
-          date: new Date(date),
+          date: date,
           courseId,
           netAllowance: netAllowance || 100,
-          status: status || 'upcoming'
+          passcode: passcode || `${Math.random().toString(36).substring(2, 8).toUpperCase()}`
         },
         include: { course: { select: { name: true } } }
       });
@@ -210,10 +220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         where: { id },
         data: {
           name: name.trim(),
-          date: new Date(date),
+          date: date,
           courseId,
-          netAllowance: netAllowance || 100,
-          status: status || 'upcoming'
+          netAllowance: netAllowance || 100
         },
         include: { course: { select: { name: true } } }
       });
@@ -237,6 +246,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error deleting tournament:', error);
       res.status(500).json({ error: 'Failed to delete tournament' });
+    }
+  });
+
+  // Tournament detail route
+  app.get('/api/tournaments/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: { 
+          course: { 
+            select: { name: true, par: true, slope: true, rating: true } 
+          } 
+        }
+      });
+      
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+      
+      res.json(tournament);
+    } catch (error) {
+      console.error('Error fetching tournament:', error);
+      res.status(500).json({ error: 'Failed to fetch tournament' });
+    }
+  });
+
+  // Entry routes
+  app.get('/api/tournaments/:id/entries', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const entries = await prisma.entry.findMany({
+        where: { tournamentId: id },
+        include: { 
+          player: { 
+            select: { id: true, name: true, email: true, handicapIndex: true } 
+          },
+          group: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { player: { name: 'asc' } }
+      });
+      
+      res.json(entries);
+    } catch (error) {
+      console.error('Error fetching entries:', error);
+      res.status(500).json({ error: 'Failed to fetch entries' });
+    }
+  });
+
+  app.post('/api/tournaments/:id/entries', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { playerId, courseHandicap, playingCH } = req.body;
+      
+      if (!playerId || courseHandicap === undefined || playingCH === undefined) {
+        return res.status(400).json({ error: 'Player ID and handicaps are required' });
+      }
+
+      // Check if player is already entered
+      const existingEntry = await prisma.entry.findUnique({
+        where: {
+          tournamentId_playerId: {
+            tournamentId: id,
+            playerId
+          }
+        }
+      });
+
+      if (existingEntry) {
+        return res.status(400).json({ error: 'Player is already entered in this tournament' });
+      }
+
+      const entry = await prisma.entry.create({
+        data: {
+          tournamentId: id,
+          playerId,
+          courseHandicap: Math.round(courseHandicap),
+          playingCH: Math.round(playingCH)
+        },
+        include: { 
+          player: { 
+            select: { id: true, name: true, email: true, handicapIndex: true } 
+          }
+        }
+      });
+      
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error('Error creating entry:', error);
+      res.status(500).json({ error: 'Failed to create entry' });
+    }
+  });
+
+  app.delete('/api/entries/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await prisma.entry.delete({
+        where: { id }
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+      res.status(500).json({ error: 'Failed to delete entry' });
+    }
+  });
+
+  app.put('/api/entries/:id/assign', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { groupId } = req.body;
+      
+      const entry = await prisma.entry.update({
+        where: { id },
+        data: { groupId: groupId || null },
+        include: { 
+          player: { 
+            select: { id: true, name: true, email: true, handicapIndex: true } 
+          },
+          group: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+      
+      res.json(entry);
+    } catch (error) {
+      console.error('Error assigning entry to group:', error);
+      res.status(500).json({ error: 'Failed to assign entry to group' });
+    }
+  });
+
+  // Group routes
+  app.get('/api/tournaments/:id/groups', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const groups = await prisma.group.findMany({
+        where: { tournamentId: id },
+        include: {
+          entries: {
+            include: {
+              player: {
+                select: { id: true, name: true, email: true, handicapIndex: true }
+              }
+            },
+            orderBy: { player: { name: 'asc' } }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+      
+      res.json(groups);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      res.status(500).json({ error: 'Failed to fetch groups' });
+    }
+  });
+
+  app.post('/api/groups', async (req, res) => {
+    try {
+      const { tournamentId, name, teeTime } = req.body;
+      
+      if (!tournamentId || !name?.trim()) {
+        return res.status(400).json({ error: 'Tournament ID and name are required' });
+      }
+
+      const group = await prisma.group.create({
+        data: {
+          tournamentId,
+          name: name.trim(),
+          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null
+        }
+      });
+      
+      res.status(201).json(group);
+    } catch (error) {
+      console.error('Error creating group:', error);
+      res.status(500).json({ error: 'Failed to create group' });
+    }
+  });
+
+  app.put('/api/groups/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, teeTime } = req.body;
+      
+      if (!name?.trim()) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+
+      const group = await prisma.group.update({
+        where: { id },
+        data: {
+          name: name.trim(),
+          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null
+        }
+      });
+      
+      res.json(group);
+    } catch (error) {
+      console.error('Error updating group:', error);
+      res.status(500).json({ error: 'Failed to update group' });
+    }
+  });
+
+  app.delete('/api/groups/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Unassign all entries from this group first
+      await prisma.entry.updateMany({
+        where: { groupId: id },
+        data: { groupId: null }
+      });
+      
+      await prisma.group.delete({
+        where: { id }
+      });
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      res.status(500).json({ error: 'Failed to delete group' });
     }
   });
 

@@ -1,25 +1,23 @@
 # Replit Agent Build Preferences — SW Monthly Golf (mobile PWA)
 
 ## Tech & Platform
-
 - Vite + Express + TypeScript (full-stack)
 - Tailwind + shadcn/ui (mobile-first)
 - Prisma + SQLite (server DB)
-- Wouter for client-side routing
-- React Query for API state management
-- Comprehensive admin CRUD system implemented
+- Wouter (client-side routing)
+- React Query (API state)
+- **vite-plugin-pwa** for PWA (manifest + service worker)
+- **Dexie** (IndexedDB) for offline scoring queue + background sync
 
-## Current Status (January 2025)
-
-- ✅ Database schema and migrations complete
-- ✅ Admin dashboard with navigation working
-- ✅ Players CRUD system fully functional
-- ✅ Courses CRUD system implemented
-- ✅ Tournaments management in progress
-- ✅ API routes for all entities working
-- ✅ Mobile-first responsive design
-- 🔄 Groups management pending
-- 🔄 PWA features and offline capabilities pending
+## Current Status (Aug 2025)
+✅ DB schema & migrations  
+✅ Admin nav framework  
+✅ Players CRUD (with HI requirement enforced)
+✅ Courses CRUD  
+✅ Tournaments management **completed** (entries, HI→CH, allowance, cap=18)  
+✅ Groups (manual w/ tee times) **completed**
+✅ Handicap calculation system with 18 passing unit tests
+🟡 PWA (install/offline) + **offline scoring w/ Dexie** **pending**
 
 ## Functional Rules (to follow in subsequent tasks)
 
