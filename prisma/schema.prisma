@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Tournament {
+  id           String    @id @default(cuid())
+  name         String
+  course       String
+  date         String
+  passcode     String    @unique
+  organizerId  String
+  playerCount  Int       @default(0)
+  isActive     Boolean   @default(true)
+  netAllowance Int       @default(100) // Percentage
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  players      TournamentPlayer[]
+  groups       Group[]
+  scores       Score[]
+  
+  @@map("tournaments")
+}
+
+model Player {
+  id            String    @id @default(cuid())
+  name          String
+  handicapIndex Float     // HI only
+  email         String?
+  createdAt     DateTime  @default(now())
+
+  tournaments   TournamentPlayer[]
+  scores        Score[]
+  
+  @@map("players")
+}
+
+model Course {
+  id        String    @id @default(cuid())
+  name      String
+  rating    Float
+  slope     Int
+  par       Int
+  holes     Json      // Array of Hole objects
+  createdAt DateTime  @default(now())
+  
+  @@map("courses")
+}
+
+model TournamentPlayer {
+  tournamentId    String
+  playerId        String
+  courseHandicap  Int       // Computed from HI
+  isOrganizer     Boolean   @default(false)
+  joinedAt        DateTime  @default(now())
+
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentId, playerId])
+  @@map("tournament_players")
+}
+
+model Group {
+  id           String    @id @default(cuid())
+  tournamentId String
+  name         String
+  teeTime      DateTime
+  playerIds    Json      // Array of player IDs
+  createdAt    DateTime  @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  @@map("groups")
+}
+
+model Score {
+  id           String    @id @default(cuid())
+  tournamentId String
+  playerId     String
+  hole         Int
+  strokes      Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId, hole])
+  @@map("scores")
+}
