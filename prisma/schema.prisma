@@ -10,90 +10,78 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-model Tournament {
-  id           String    @id @default(cuid())
-  name         String
-  course       String
-  date         String
-  passcode     String    @unique
-  organizerId  String
-  playerCount  Int       @default(0)
-  isActive     Boolean   @default(true)
-  netAllowance Int       @default(100) // Percentage
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  players      TournamentPlayer[]
-  groups       Group[]
-  scores       Score[]
-  
-  @@map("tournaments")
-}
-
 model Player {
   id            String    @id @default(cuid())
-  name          String
-  handicapIndex Float     // HI only
-  email         String?
+  name          String    // required
+  email         String?   // optional
+  handicapIndex Float?    // HI only, optional
   createdAt     DateTime  @default(now())
 
-  tournaments   TournamentPlayer[]
-  scores        Score[]
+  entries       Entry[]
   
   @@map("players")
 }
 
 model Course {
-  id        String    @id @default(cuid())
-  name      String
-  rating    Float
-  slope     Int
-  par       Int
-  holes     Json      // Array of Hole objects
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  name        String    // required
+  par         Int       // required
+  slope       Int       // required
+  rating      Float     // required
+  createdAt   DateTime  @default(now())
+
+  tournaments Tournament[]
   
   @@map("courses")
 }
 
-model TournamentPlayer {
-  tournamentId    String
-  playerId        String
-  courseHandicap  Int       // Computed from HI
-  isOrganizer     Boolean   @default(false)
-  joinedAt        DateTime  @default(now())
+model Tournament {
+  id                    String    @id @default(cuid())
+  name                  String    // required
+  date                  String    // required
+  courseId              String    // FK to Course
+  holes                 Int       @default(18)
+  netAllowance          Int       @default(100) // adjustable per event
+  passcode              String    // simple for now
+  potAmount             Int?      // optional
+  participantsForSkins  Int?      // optional
+  skinsCarry            Boolean   @default(false) // MUST remain false (no carry)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@id([tournamentId, playerId])
-  @@map("tournament_players")
+  course                Course    @relation(fields: [courseId], references: [id])
+  entries               Entry[]
+  groups                Group[]
+  
+  @@map("tournaments")
 }
 
 model Group {
   id           String    @id @default(cuid())
   tournamentId String
-  name         String
-  teeTime      DateTime
-  playerIds    Json      // Array of player IDs
+  name         String    // required
+  teeTime      DateTime? // optional
   createdAt    DateTime  @default(now())
 
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  entries      Entry[]
   
   @@map("groups")
 }
 
-model Score {
-  id           String    @id @default(cuid())
-  tournamentId String
-  playerId     String
-  hole         Int
-  strokes      Int
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+model Entry {
+  id              String    @id @default(cuid())
+  tournamentId    String
+  playerId        String
+  courseHandicap  Int       // CH after rounding + cap
+  playingCH       Int       // after netAllowance + rounding
+  groupId         String?   // optional
+  createdAt       DateTime  @default(now())
 
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  group           Group?     @relation(fields: [groupId], references: [id])
 
-  @@unique([tournamentId, playerId, hole])
-  @@map("scores")
+  @@unique([tournamentId, playerId])
+  @@map("entries")
 }
