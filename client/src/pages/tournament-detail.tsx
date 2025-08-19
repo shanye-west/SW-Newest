@@ -18,6 +18,8 @@ interface Tournament {
   courseId: string;
   netAllowance: number;
   passcode: string;
+  potAmount?: number; // in cents
+  participantsForSkins?: number;
   course: {
     name: string;
     par: number;
@@ -76,6 +78,7 @@ export default function TournamentDetail() {
   const [isLoading, setIsLoading] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -394,6 +397,44 @@ export default function TournamentDetail() {
     setLocation(`/tournaments/${params?.id}/leaderboards`);
   };
 
+  const handleSaveSkinsSettings = async (potAmount: number, participantsForSkins: number) => {
+    if (!params?.id) return;
+    
+    setIsSavingSettings(true);
+    try {
+      const response = await fetch(`/api/tournaments/${params.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          potAmount: potAmount * 100, // Convert dollars to cents
+          participantsForSkins
+        })
+      });
+      
+      if (response.ok) {
+        const updatedTournament = await response.json();
+        setTournament(updatedTournament);
+        toast({
+          title: "Settings saved",
+          description: "Skins payout settings updated successfully"
+        });
+      } else {
+        throw new Error('Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save skins settings",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   if (!tournament) {
     return <div className="p-4">Loading tournament...</div>;
   }
@@ -409,15 +450,19 @@ export default function TournamentDetail() {
           <p><strong>Course:</strong> {tournament.course.name}</p>
           <p><strong>Net Allowance:</strong> {tournament.netAllowance}%</p>
           <p><strong>Passcode:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{tournament.passcode}</code></p>
+          {tournament.potAmount && tournament.participantsForSkins && (
+            <p><strong>Skins Pot:</strong> ${(tournament.potAmount / 100).toFixed(2)} ({tournament.participantsForSkins} participants)</p>
+          )}
         </div>
       </div>
 
       <Tabs defaultValue="entries" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="entries">Entries</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
           <TabsTrigger value="leaderboards">Results</TabsTrigger>
           <TabsTrigger value="scoring">Scoring</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="share">Share</TabsTrigger>
         </TabsList>
 
@@ -773,6 +818,94 @@ export default function TournamentDetail() {
               ) : (
                 <p className="text-gray-500">Create groups first to enable scoring.</p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                Tournament Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Skins Payout Configuration</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Configure the pot amount and number of participants for skins payout calculation. 
+                  Payout per skin is computed as pot ÷ total skins. If zero skins, payout is $0.00.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="potAmount">Pot Amount ($)</Label>
+                    <Input
+                      id="potAmount"
+                      type="number"
+                      step="1"
+                      min="0"
+                      placeholder="0"
+                      defaultValue={tournament.potAmount ? (tournament.potAmount / 100).toString() : ''}
+                      data-testid="input-pot-amount"
+                    />
+                    <p className="text-xs text-gray-500">Enter the total pot amount in dollars</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="participantsForSkins">Participants Count</Label>
+                    <Input
+                      id="participantsForSkins"
+                      type="number"
+                      step="1"
+                      min="0"
+                      placeholder="0"
+                      defaultValue={tournament.participantsForSkins?.toString() || ''}
+                      data-testid="input-participants-for-skins"
+                    />
+                    <p className="text-xs text-gray-500">Number of players participating in skins</p>
+                  </div>
+                </div>
+                
+                <Button
+                  onClick={() => {
+                    const potInput = document.getElementById('potAmount') as HTMLInputElement;
+                    const participantsInput = document.getElementById('participantsForSkins') as HTMLInputElement;
+                    
+                    const potAmount = parseFloat(potInput.value) || 0;
+                    const participants = parseInt(participantsInput.value) || 0;
+                    
+                    handleSaveSkinsSettings(potAmount, participants);
+                  }}
+                  disabled={isSavingSettings}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-save-skins-settings"
+                >
+                  {isSavingSettings ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Skins Settings'
+                  )}
+                </Button>
+                
+                {tournament.potAmount && tournament.participantsForSkins && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Current Settings</h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Pot:</strong> ${(tournament.potAmount / 100).toFixed(2)} • 
+                      <strong> Participants:</strong> {tournament.participantsForSkins}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      These settings will be used to calculate skins payouts on the leaderboards and public results page.
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

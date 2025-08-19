@@ -83,14 +83,25 @@ export default function Leaderboards() {
 
   const fetchSkins = async (tournamentId: string) => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/skins`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/results`);
       if (response.ok) {
         const data = await response.json();
-        setSkinsResults(data.results);
-        setSkinsLeaderboard(data.leaderboard);
-        setTotalSkins(data.totalSkins);
-        setPotAmount(data.potAmount);
-        setPayoutPerSkin(data.payoutPerSkin);
+        if (data.skins) {
+          setSkinsResults(data.skins.perHole || []);
+          
+          // Convert perPlayer object to leaderboard array with payouts
+          const leaderboard = Object.entries(data.skins.perPlayer || {}).map(([entryId, player]: [string, any]) => ({
+            playerName: player.playerName,
+            entryId,
+            skins: player.count,
+            payout: data.skins.payout?.perPlayerPayouts?.[entryId] || 0,
+          })).sort((a, b) => b.skins - a.skins);
+          
+          setSkinsLeaderboard(leaderboard);
+          setTotalSkins(data.skins.payout?.totalSkins || 0);
+          setPotAmount(data.skins.payout?.potAmount ? data.skins.payout.potAmount / 100 : null);
+          setPayoutPerSkin(data.skins.payout?.payoutPerSkin || 0);
+        }
       }
     } catch (error) {
       console.error('Error fetching skins:', error);
@@ -238,17 +249,28 @@ export default function Leaderboards() {
                 <CardTitle className="flex items-center gap-2">
                   <Coins className="w-5 h-5" />
                   Skins Leaderboard
-                  {potAmount && (
+                  {potAmount ? (
                     <Badge variant="secondary">
-                      Pot: ${potAmount} • {totalSkins} total skins
+                      Pot: ${potAmount.toFixed(2)} • Total skins: {totalSkins} • Payout/skin: ${payoutPerSkin.toFixed(2)}
                     </Badge>
-                  )}
+                  ) : totalSkins > 0 ? (
+                    <Badge variant="outline">
+                      {totalSkins} total skins • No pot configured
+                    </Badge>
+                  ) : null}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {totalSkins === 0 ? (
                   <div className="text-center text-gray-500 py-8">
-                    No skins won yet. All holes have been pushes!
+                    {potAmount ? (
+                      <>
+                        <p>No skins yet. Payout/skin: $0.00</p>
+                        <p className="text-xs mt-1">Pot: ${potAmount.toFixed(2)} waiting for winners</p>
+                      </>
+                    ) : (
+                      <p>No skins won yet. All holes have been pushes!</p>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -263,15 +285,13 @@ export default function Leaderboards() {
                           <h3 className="font-medium">{entry.playerName}</h3>
                           <p className="text-sm text-gray-600">
                             {entry.skins} skin{entry.skins !== 1 ? 's' : ''}
+                            {potAmount && entry.payout > 0 && ` (${entry.payout.toFixed(2)})`}
                           </p>
                         </div>
                         {potAmount && entry.payout > 0 && (
                           <div className="text-right">
                             <div className="text-lg font-bold text-green-600">
                               ${entry.payout.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              ${payoutPerSkin.toFixed(2)} per skin
                             </div>
                           </div>
                         )}

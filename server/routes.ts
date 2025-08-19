@@ -237,6 +237,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/tournaments/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { potAmount, participantsForSkins } = req.body;
+      
+      const tournament = await prisma.tournament.update({
+        where: { id },
+        data: {
+          potAmount: potAmount !== undefined ? potAmount : undefined,
+          participantsForSkins: participantsForSkins !== undefined ? participantsForSkins : undefined
+        },
+        include: { course: { select: { name: true, par: true, slope: true, rating: true } } }
+      });
+      
+      res.json(tournament);
+    } catch (error) {
+      console.error('Error updating tournament settings:', error);
+      res.status(500).json({ error: 'Failed to update tournament settings' });
+    }
+  });
+
   app.delete('/api/tournaments/:id', async (req, res) => {
     try {
       const { id } = req.params;

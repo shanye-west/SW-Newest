@@ -18,6 +18,14 @@ A comprehensive mobile-first Progressive Web Application for golf tournament man
 - Group creation with per-group tee times
 - Drag-and-drop style player assignment to groups
 
+### Skins Payouts
+- **Pot Configuration**: Set pot amount (in dollars) and number of participants in tournament settings
+- **Payout Calculation**: Automatically calculates payout per skin as `pot ÷ total skins`
+- **Zero Skins Handling**: Shows $0.00 payout when no skins are won yet
+- **Real-time Updates**: Payout information updates live on admin leaderboards and public results
+- **Public Display**: Share links show pot amount, total skins, and individual player payouts
+- **Precision**: All calculations rounded to cents using standard banker's rounding
+
 ### Technical Features
 - Mobile-first responsive design
 - Comprehensive error handling and validation
@@ -35,10 +43,16 @@ This starts both the Express backend API server and Vite frontend development se
 
 ### Testing
 ```bash
-# Run handicap calculation tests
-npx vitest run __tests__/handicap.test.ts
+# Run all tests
+npm test
 
-# All handicap tests should pass (18/18)
+# Run specific test suites
+npx vitest run __tests__/handicap.test.ts     # Handicap calculations (18 tests)
+npx vitest run __tests__/payouts.test.ts      # Skins payout calculations (10 tests)
+npx vitest run __tests__/sync.test.ts         # Offline sync functionality (8 tests)
+npx vitest run __tests__/dexie-queue.test.ts  # Queue management (6 tests)
+
+# All tests should pass (42/42)
 ```
 
 ### Database

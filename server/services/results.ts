@@ -185,12 +185,51 @@ export async function computeResults(tournamentId: string) {
     }
   }
 
+  // Calculate payout information if pot amount is set
+  let payout = {
+    potAmount: 0,
+    participantsForSkins: 0,
+    totalSkins: 0,
+    payoutPerSkin: 0,
+    perPlayerPayouts: {} as Record<string, number>
+  };
+
+  if (t.potAmount && t.participantsForSkins) {
+    const totalSkins = Object.values(perPlayer).reduce((sum, player) => sum + player.count, 0);
+    const potInDollars = t.potAmount / 100; // Convert cents to dollars
+    
+    let payoutPerSkin = 0;
+    const perPlayerPayouts: Record<string, number> = {};
+    
+    if (totalSkins > 0) {
+      payoutPerSkin = Math.round((potInDollars / totalSkins) * 100) / 100; // Round to cents
+      
+      for (const [entryId, playerData] of Object.entries(perPlayer)) {
+        perPlayerPayouts[entryId] = Math.round((playerData.count * payoutPerSkin) * 100) / 100;
+      }
+    } else {
+      // No skins yet, all payouts are zero
+      for (const entryId of Object.keys(perPlayer)) {
+        perPlayerPayouts[entryId] = 0;
+      }
+    }
+
+    payout = {
+      potAmount: t.potAmount, // Keep as cents in API
+      participantsForSkins: t.participantsForSkins,
+      totalSkins,
+      payoutPerSkin,
+      perPlayerPayouts
+    };
+  }
+
   return {
     gross: grossRanked,
     net: netRanked,
     skins: {
       perHole,
       perPlayer, // { entryId: { playerName, count, holes[] } }
+      payout
     },
     lastUpdatedAt: new Date().toISOString(),
   };

@@ -21,12 +21,9 @@ interface LeaderboardEntry {
 
 interface SkinsResult {
   hole: number;
-  par: number;
-  winner: string | null;
-  winnerScore: number | null;
-  isPush: boolean;
-  pushCount?: number;
-  pushScore?: number;
+  winnerEntryId?: string;
+  winnerName?: string;
+  push?: { count: number; score: number };
 }
 
 interface SkinsLeaderboard {
@@ -49,11 +46,15 @@ interface PublicResults {
   gross: LeaderboardEntry[];
   net: LeaderboardEntry[];
   skins: {
-    results: SkinsResult[];
-    leaderboard: SkinsLeaderboard[];
-    totalSkins: number;
-    potAmount: number | null;
-    payoutPerSkin: number;
+    perHole: SkinsResult[];
+    perPlayer: { [entryId: string]: { playerName: string; count: number; holes: number[]; } };
+    payout?: {
+      potAmount: number;
+      participantsForSkins: number;
+      totalSkins: number;
+      payoutPerSkin: number;
+      perPlayerPayouts: { [entryId: string]: number };
+    };
   };
   coursePar: number;
   updated: string;
@@ -317,21 +318,37 @@ export default function PublicResults() {
                   <CardTitle className="flex items-center gap-2">
                     <Coins className="w-5 h-5" />
                     Skins Leaderboard
-                    {results.skins.potAmount && (
+                    {results.skins.payout && results.skins.payout.potAmount > 0 && (
                       <Badge variant="secondary">
-                        Pot: ${results.skins.potAmount} • {results.skins.totalSkins} total skins
+                        Pot: ${(results.skins.payout.potAmount / 100).toFixed(2)} • Total skins: {results.skins.payout.totalSkins} • Payout/skin: ${results.skins.payout.payoutPerSkin.toFixed(2)}
                       </Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {results.skins.totalSkins === 0 ? (
+                  {!results.skins.payout || results.skins.payout.totalSkins === 0 ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      No skins won yet. All holes have been pushes!
+                      {results.skins.payout && results.skins.payout.potAmount > 0 ? (
+                        <>
+                          <p>No skins yet. Payout/skin: $0.00</p>
+                          <p className="text-xs mt-1">Pot: ${(results.skins.payout.potAmount / 100).toFixed(2)} waiting for winners</p>
+                        </>
+                      ) : (
+                        <p>No skins won yet. All holes have been pushes!</p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {results.skins.leaderboard.map((entry, index) => (
+                      {Object.entries(results.skins.perPlayer || {})
+                        .map(([entryId, player]) => ({
+                          entryId,
+                          playerName: player.playerName,
+                          skins: player.count,
+                          holes: player.holes,
+                          payout: results.skins.payout?.perPlayerPayouts?.[entryId] || 0
+                        }))
+                        .sort((a, b) => b.skins - a.skins)
+                        .map((entry, index) => (
                         <div 
                           key={entry.entryId} 
                           className={`flex items-center justify-between p-3 rounded-lg border ${
@@ -341,16 +358,16 @@ export default function PublicResults() {
                           <div>
                             <h3 className="font-medium">{entry.playerName}</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {entry.skins} skin{entry.skins !== 1 ? 's' : ''}
+                              {entry.skins} skin{entry.skins !== 1 ? 's' : ''} — holes {entry.holes.join(', ')}
+                              {results.skins.payout && results.skins.payout.potAmount > 0 && entry.payout > 0 && (
+                                <> (${entry.payout.toFixed(2)})</>
+                              )}
                             </p>
                           </div>
-                          {results.skins.potAmount && entry.payout > 0 && (
+                          {results.skins.payout && results.skins.payout.potAmount > 0 && entry.payout > 0 && (
                             <div className="text-right">
                               <div className="text-lg font-bold text-green-600 dark:text-green-400">
                                 ${entry.payout.toFixed(2)}
-                              </div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400">
-                                ${results.skins.payoutPerSkin.toFixed(2)} per skin
                               </div>
                             </div>
                           )}
@@ -368,7 +385,7 @@ export default function PublicResults() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {results.skins.results.map((result) => (
+                    {results.skins.perHole.map((result) => (
                       <div 
                         key={result.hole} 
                         className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded"
@@ -377,18 +394,19 @@ export default function PublicResults() {
                           <span className="font-medium min-w-[3rem]">
                             H{result.hole}:
                           </span>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
-                            Par {result.par}
-                          </span>
                         </div>
                         <div className="text-right">
-                          {result.isPush ? (
+                          {result.push ? (
                             <span className="text-orange-600 dark:text-orange-400">
-                              Push ({result.pushCount} at {result.pushScore})
+                              Push ({result.push.count} at {result.push.score})
+                            </span>
+                          ) : result.winnerName ? (
+                            <span className="text-green-600 dark:text-green-400 font-medium">
+                              {result.winnerName}
                             </span>
                           ) : (
-                            <span className="text-green-600 dark:text-green-400 font-medium">
-                              {result.winner} ({result.winnerScore})
+                            <span className="text-gray-500">
+                              No scores yet
                             </span>
                           )}
                         </div>

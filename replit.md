@@ -18,7 +18,8 @@
 ✅ Groups (manual w/ tee times) **completed**
 ✅ Handicap calculation system with 18 passing unit tests
 ✅ Global sticky header navigation **completed** (route-aware, tournament context)
-🟡 PWA (install/offline) + **offline scoring w/ Dexie** **pending**
+✅ PWA (install/offline) + **offline scoring w/ Dexie** **completed**
+✅ **Gross Skins payout calculation and display** **completed** (admin + public leaderboards)
 
 ## Functional Rules (to follow in subsequent tasks)
 

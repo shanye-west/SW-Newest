@@ -1,0 +1,59 @@
+Goal: Add Gross Skins payout calculation and display it on admin + public leaderboards. ONE cohesive feature → ONE checkpoint. Keep diffs tight.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa + Dexie.
+
+Scope
+
+1) DB (Prisma)
+- Tournament already has potAmount? and participantsForSkins? fields (number). If missing, add them via a new migration (keep existing data).
+- potAmount is dollars (float) or store as cents (int). Choose cents (int) internally to avoid float errors; if currently float, migrate to cents if easy, otherwise normalize in code.
+
+2) Results service
+- Update computeResults(tournamentId) to include payouts for skins with NO carry:
+  - totalSkins = sum of perPlayer.count
+  - payoutPerSkin = totalSkins > 0 ? roundToCents(potAmount / totalSkins) : 0
+  - perPlayerPayout = roundToCents(perPlayer.count * payoutPerSkin)
+- Extend API shape:
+  - Add `skins.payout` object: { potAmount, participantsForSkins, totalSkins, payoutPerSkin, perPlayerPayouts: { [entryId]: number } }
+- Round to 2 decimals (banker’s off; standard nearest 0.5 up). Implement a tiny helper `roundToCents(n:number): number`.
+
+3) Admin UI (Tournament settings)
+- In the Tournament detail/settings screen:
+  - Add numeric inputs for `potAmount` (in dollars, step 1) and `participantsForSkins` (int).
+  - Inline helper text: “Payout per skin is computed as pot / total skins. If zero skins, payout is $0.00.”
+  - On change, save and refetch results to update preview (respect the existing server 5s cache; show “updating…” while waiting).
+- In the Leaderboards tab (admin view):
+  - Under Skins, show a small payout summary bar:
+    - “Pot: $X • Total skins: N • Payout/skin: $Y”
+    - In the per-player list, add “($Z)” after the skin count.
+
+4) Public page (`/public/:token`)
+- Mirror the payout info on the Skins section:
+  - “Pot: $X • Total skins: N • Payout/skin: $Y”
+  - In the per-player rows: “3 skins — holes 2,7,11 ($Z)”
+- If totalSkins = 0, show: “No skins yet. Payout/skin: $0.00”.
+
+5) API contracts
+- Keep private `/api/tournaments/:id/results` and public `/api/public/:token/results` shapes consistent (now including `skins.payout`).
+- Maintain the 5s in-memory cache for results.
+
+6) Tests (Vitest)
+- Unit tests for `roundToCents` (e.g., 10/3 = 3.33; 0.1+0.2 = 0.3).
+- Results payout tests:
+  - potAmount=$180, totalSkins=9 => payout/skin=$20.00; player with 2 skins gets $40.00.
+  - potAmount=$100, totalSkins=0 => payout/skin=$0.00; all $0.00.
+  - Mixed case with rounding (e.g., pot=$100, totalSkins=6 => $16.67/skin; 3 skins => $50.01).
+- Public API test returns payout fields; admin/public parity for same tournament.
+
+UX/DX
+- Mobile-first UI; keep the payout bar compact.
+- Dollars display uses 2 decimals and locale formatting.
+- README: add short section “Skins payouts” explaining pot, totalSkins, payout/skin, and zero-skins behavior.
+
+Acceptance (before creating the single checkpoint):
+- I can set potAmount and participants in Tournament settings; UI shows payout/skin preview and updates after save.
+- `/api/tournaments/:id/results` and `/api/public/:token/results` include `skins.payout` with the correct math.
+- Admin and public leaderboards show payout/skin and per-player payouts.
+- Rounding is correct to cents; zero-skins shows $0.00 with a friendly note.
+- Lint/tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.
