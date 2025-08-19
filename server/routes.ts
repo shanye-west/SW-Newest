@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { prisma } from "../lib/db";
 import { calculateLeaderboards, calculateGrossSkins, calculateSkinsPayouts } from "../lib/scoring";
+import { resultsCache } from "./cache";
+import { makeShareToken } from "../scripts/backfillShareTokens";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Players API routes
@@ -759,6 +761,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching group scores:', error);
       res.status(500).json({ error: 'Failed to fetch group scores' });
+    }
+  });
+
+  // Helper function to compute tournament results
+  async function computeResults(tournamentId: string) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        course: true,
+        entries: {
+          include: {
+            player: true,
+            holeScores: true
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      return null;
+    }
+
+    // Generate hole pars array (simplified - assume par 4 for all holes)
+    const holePars = Array(18).fill(4);
+    
+    // Calculate leaderboards using scoring utility
+    const leaderboards = calculateLeaderboards(tournament.entries, tournament.course.par);
+    
+    // Calculate skins
+    const skinsData = calculateGrossSkins(tournament.entries, tournament.course.par, holePars);
+    
+    // Calculate payouts if pot amount is set
+    let skinsLeaderboard = skinsData.leaderboard;
+    if (tournament.potAmount && tournament.participantsForSkins) {
+      skinsLeaderboard = calculateSkinsPayouts(
+        skinsData.leaderboard, 
+        tournament.potAmount, 
+        skinsData.totalSkins
+      );
+    }
+
+    return {
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        date: tournament.date,
+        course: {
+          name: tournament.course.name,
+          par: tournament.course.par
+        }
+      },
+      gross: leaderboards.gross,
+      net: leaderboards.net,
+      skins: {
+        results: skinsData.results,
+        leaderboard: skinsLeaderboard,
+        totalSkins: skinsData.totalSkins,
+        potAmount: tournament.potAmount,
+        payoutPerSkin: tournament.potAmount && skinsData.totalSkins > 0 
+          ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) / 100 
+          : 0
+      },
+      coursePar: tournament.course.par,
+      updated: new Date()
+    };
+  }
+
+  // Public results API with cache
+  app.get('/api/public/:token/results', async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      if (!token || token.length !== 12) {
+        return res.status(400).json({ error: 'Invalid share token format' });
+      }
+
+      // Find tournament by share token
+      const tournament = await prisma.tournament.findUnique({
+        where: { shareToken: token },
+        select: { id: true }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Check cache first
+      const cacheKey = tournament.id;
+      let results = resultsCache.get(cacheKey);
+
+      if (!results) {
+        // Cache miss - compute results
+        results = await computeResults(tournament.id);
+        
+        if (!results) {
+          return res.status(404).json({ error: 'Tournament not found' });
+        }
+
+        // Cache the results
+        resultsCache.set(cacheKey, results);
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Error fetching public results:', error);
+      res.status(500).json({ error: 'Failed to fetch results' });
+    }
+  });
+
+  // Generate or regenerate share token for tournament
+  app.post('/api/tournaments/:id/share-token', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify tournament exists
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        select: { id: true, shareToken: true }
+      });
+
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Generate new unique token
+      let newToken: string;
+      let isUnique = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (!isUnique && attempts < maxAttempts) {
+        newToken = makeShareToken(12);
+        
+        const existing = await prisma.tournament.findUnique({
+          where: { shareToken: newToken }
+        });
+        
+        if (!existing) {
+          isUnique = true;
+        }
+        attempts++;
+      }
+
+      if (!isUnique) {
+        return res.status(500).json({ error: 'Failed to generate unique token' });
+      }
+
+      // Update tournament with new token
+      const updatedTournament = await prisma.tournament.update({
+        where: { id },
+        data: { shareToken: newToken! },
+        select: { shareToken: true }
+      });
+
+      // Clear cache for this tournament since we're regenerating the token
+      resultsCache.clear();
+
+      res.json({ shareToken: updatedTournament.shareToken });
+    } catch (error) {
+      console.error('Error generating share token:', error);
+      res.status(500).json({ error: 'Failed to generate share token' });
     }
   });
 

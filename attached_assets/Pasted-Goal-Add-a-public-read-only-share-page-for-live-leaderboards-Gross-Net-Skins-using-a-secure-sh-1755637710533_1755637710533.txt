@@ -1,0 +1,51 @@
+Goal: Add a public, read-only share page for live leaderboards (Gross, Net, Skins) using a secure share token. Implement end to end with ONE cohesive checkpoint.
+
+Stack to follow: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa. Keep diffs tight.
+
+Changes:
+
+1) DB: add shareToken to Tournament
+- Prisma schema: add `shareToken String? @unique` to Tournament.
+- Migration: create new migration; do NOT drop existing data.
+- Backfill script: for any Tournament with null shareToken, set a random base62 token (length 12). Implement `scripts/backfillShareTokens.ts` and wire a `npm run backfill:share` script.
+
+2) Server: public results API + 5s cache
+- Add GET `/api/public/:token/results`:
+  - Look up Tournament by `shareToken = :token`. If not found → 404.
+  - Use existing computeResults(tournamentId).
+  - Add a simple in-memory cache: key = tournamentId, value = { data, timestamp }. Return cached value if <= 5 seconds old.
+  - NEVER require passcode; NEVER include sensitive fields beyond results (Gross/Net/Skins + basic tournament info like name/date/course).
+- (Keep existing private `/api/tournaments/:id/results` unchanged.)
+
+3) Client: public read-only route (no passcode)
+- Add route `/public/:token` that:
+  - Fetches `/api/public/:token/results`.
+  - Displays three tabs or sections: Gross, Net, Skins (reusing your existing Leaderboards UI styling).
+  - Shows header with Tournament name, date, course name, and “Last updated <time>”.
+  - Polls results every 10 seconds (React Query or setInterval).
+  - No admin controls; strictly read-only.
+
+4) Share link in organizer UI
+- On the Tournament detail page, add a small “Share” section:
+  - If `shareToken` exists, show a copy-to-clipboard button with the URL `/public/<token>`.
+  - If missing (shouldn’t happen due to backfill), show a “Generate Link” button that creates and saves a token, then shows the URL.
+  - Include a “Reset Link” (regenerate token) with a confirm dialog. Regeneration invalidates the old public URL.
+
+5) Tests (Vitest):
+- Unit test for token helper: `makeShareToken()` returns 12-char base62 and collisions are highly unlikely across e.g. 10k iterations (probabilistic check).
+- Public API returns the same leaderboard data shape as private API for the same tournament.
+- Cache sanity: first call computes, second call within 5s returns cached (can expose a small cache module function to test).
+
+UX & DX:
+- Mobile-first UI, match existing styling.
+- Update README with “Public link” instructions and the new scripts (`backfill:share`).
+- Do NOT change scoring logic or private endpoints.
+- Keep diffs tight; remove no unrelated files.
+
+Acceptance (before creating the single checkpoint):
+- Prisma migration runs; tournaments get a `shareToken` (backfilled for existing).
+- Hitting `/public/<token>` in the browser renders live Gross/Net/Skins and updates within ~10s as scores change.
+- `/api/public/:token/results` works and uses a 5s cache.
+- Tournament detail page shows a working copy-to-clipboard “Share link”.
+- Lint/tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

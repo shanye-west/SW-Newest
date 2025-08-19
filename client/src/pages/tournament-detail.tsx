@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3, Share2, Copy, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateHandicaps, recomputeEntryHandicaps } from '../../../lib/handicap';
 import { useTournamentContext } from '../contexts/TournamentContext';
@@ -74,6 +74,8 @@ export default function TournamentDetail() {
     teeTime: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export default function TournamentDetail() {
       if (response.ok) {
         const data = await response.json();
         setTournament(data);
+        setShareToken(data.shareToken);
         // Set active tournament for header context
         setActiveTournament({
           id: data.id,
@@ -329,6 +332,68 @@ export default function TournamentDetail() {
     }
   };
 
+  const generateShareToken = async () => {
+    if (!params?.id) return;
+    
+    setIsGeneratingToken(true);
+    try {
+      const response = await fetch(`/api/tournaments/${params.id}/share-token`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setShareToken(data.shareToken);
+        toast({
+          title: "Share link generated",
+          description: "New share link created and ready to copy"
+        });
+      } else {
+        throw new Error('Failed to generate share token');
+      }
+    } catch (error) {
+      console.error('Error generating share token:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate share link",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  };
+
+  const copyShareLink = async () => {
+    if (!shareToken) return;
+    
+    const shareUrl = `${window.location.origin}/public/${shareToken}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link copied!",
+        description: "Share link copied to clipboard"
+      });
+    } catch (error) {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      toast({
+        title: "Link copied!",
+        description: "Share link copied to clipboard"
+      });
+    }
+  };
+
+  const goToLeaderboards = () => {
+    setLocation(`/tournaments/${params?.id}/leaderboards`);
+  };
+
   if (!tournament) {
     return <div className="p-4">Loading tournament...</div>;
   }
@@ -348,11 +413,12 @@ export default function TournamentDetail() {
       </div>
 
       <Tabs defaultValue="entries" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="entries">Entries</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
           <TabsTrigger value="leaderboards">Results</TabsTrigger>
           <TabsTrigger value="scoring">Scoring</TabsTrigger>
+          <TabsTrigger value="share">Share</TabsTrigger>
         </TabsList>
 
         <TabsContent value="entries" className="space-y-4">
@@ -707,6 +773,108 @@ export default function TournamentDetail() {
               ) : (
                 <p className="text-gray-500">Create groups first to enable scoring.</p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Share Tab */}
+        <TabsContent value="share">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Share2 className="w-5 h-5" />
+                Public Tournament Sharing
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Generate a public share link that allows anyone to view live tournament results without admin access. 
+                The link shows real-time leaderboards for Gross, Net, and Skins competitions.
+              </p>
+
+              {shareToken ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <h3 className="font-medium text-green-800 dark:text-green-200 mb-2">
+                      🎉 Share Link Ready!
+                    </h3>
+                    <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border rounded font-mono text-sm">
+                      <span className="flex-1 truncate">
+                        {window.location.origin}/public/{shareToken}
+                      </span>
+                      <Button 
+                        onClick={copyShareLink}
+                        size="sm"
+                        variant="outline"
+                        className="flex-shrink-0"
+                        data-testid="button-copy-share-link"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                      Anyone with this link can view live tournament results. The link updates automatically as scores are posted.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={generateShareToken}
+                      disabled={isGeneratingToken}
+                      variant="outline"
+                      data-testid="button-regenerate-share-token"
+                    >
+                      {isGeneratingToken ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Generate New Link
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => window.open(`/public/${shareToken}`, '_blank')}
+                      variant="default"
+                      data-testid="button-preview-share-page"
+                    >
+                      <Target className="w-4 h-4 mr-2" />
+                      Preview Results Page
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Share2 className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Share Link Yet</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Generate a secure public link to share live tournament results with spectators and participants.
+                  </p>
+                  <Button 
+                    onClick={generateShareToken}
+                    disabled={isGeneratingToken}
+                    data-testid="button-generate-share-token"
+                  >
+                    {isGeneratingToken ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Share2 className="w-4 h-4 mr-2" />
+                    )}
+                    Generate Share Link
+                  </Button>
+                </div>
+              )}
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">Share Link Features:</h4>
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <li>• Live tournament results that update every 10 seconds</li>
+                  <li>• Gross Total, Net Total, and Skins leaderboards</li>
+                  <li>• Player handicaps and course information</li>
+                  <li>• Hole-by-hole skins results with carry-over tracking</li>
+                  <li>• Mobile-friendly responsive design</li>
+                  <li>• No sign-up or passwords required for viewers</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
