@@ -1,243 +1,318 @@
-// Course Holes Editor
-import { useState } from 'react';
-import { useParams, useLocation } from 'wouter';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useRoute, useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { apiRequest } from '@/lib/queryClient';
-import type { CourseHole } from '../../../shared/schema';
+import { ChevronLeft, RotateCcw, Shuffle, Save, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '../lib/queryClient';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { isPermutation1to18 } from '../../../shared/handicapNet';
 
-export function CourseHolesPage() {
-  const { id } = useParams<{ id: string }>();
+interface CourseHole {
+  id?: string;
+  hole: number;
+  par: number;
+  strokeIndex: number;
+}
+
+interface Course {
+  id: string;
+  name: string;
+}
+
+const DEFAULT_PARS = [4,4,4,3,4,4,5,3,4, 4,4,3,4,5,4,4,3,4];
+
+export default function CourseHoles() {
+  const [match, params] = useRoute('/courses/:id/holes');
   const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
+  const [holes, setHoles] = useState<CourseHole[]>([]);
+  const [hasChanges, setHasChanges] = useState(false);
+  const { toast } = useToast();
 
-  // Fetch course holes
-  const { data: holes, isLoading } = useQuery({
-    queryKey: ['/api/courses', id, 'holes'],
-    queryFn: () => apiRequest(`/api/courses/${id}/holes`),
-    enabled: !!id,
+  // Fetch course info
+  const { data: course, isLoading: courseLoading } = useQuery({
+    queryKey: ['/api/courses', params?.id],
+    enabled: !!params?.id,
   });
 
-  // Fetch course info for display
-  const { data: courses } = useQuery({
-    queryKey: ['/api/courses'],
+  // Fetch existing holes
+  const { data: holesData, isLoading: holesLoading, refetch } = useQuery({
+    queryKey: ['/api/courses', params?.id, 'holes'],
+    enabled: !!params?.id,
   });
-
-  const course = courses?.find((c: any) => c.id === id);
-
-  const [editedHoles, setEditedHoles] = useState<CourseHole[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-  // Initialize edited holes when data loads
-  useState(() => {
-    if (holes && holes.length === 18) {
-      setEditedHoles([...holes]);
-    } else if (holes && holes.length === 0) {
-      // Create default 18 holes
-      const defaultHoles = Array.from({ length: 18 }, (_, i) => ({
-        id: `temp-${i + 1}`,
-        courseId: id!,
-        hole: i + 1,
-        par: 4,
-        strokeIndex: i + 1,
-      }));
-      setEditedHoles(defaultHoles);
-    }
-  }, [holes, id]);
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (holesData: Omit<CourseHole, 'id' | 'courseId'>[]) =>
-      apiRequest(`/api/courses/${id}/holes`, {
+    mutationFn: (data: { holes: CourseHole[] }) => 
+      apiRequest(`/api/courses/${params?.id}/holes`, {
         method: 'PATCH',
-        body: { holes: holesData },
+        body: JSON.stringify(data),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/courses', id, 'holes'] });
-      setLocation('/courses');
+      toast({
+        title: "Success",
+        description: "Course holes updated successfully",
+      });
+      setHasChanges(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/courses'] });
+      refetch();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update course holes",
+        variant: "destructive",
+      });
     },
   });
 
-  // Validation logic
-  const validateHoles = (holes: CourseHole[]): string[] => {
-    const errors: string[] = [];
-
-    if (holes.length !== 18) {
-      errors.push('Must have exactly 18 holes');
-      return errors;
+  // Initialize holes when data loads
+  useEffect(() => {
+    if (holesData?.holes) {
+      setHoles(holesData.holes);
+    } else if (!holesLoading && params?.id) {
+      // Initialize with defaults if no holes exist
+      const defaultHoles = Array.from({ length: 18 }, (_, i) => ({
+        hole: i + 1,
+        par: DEFAULT_PARS[i] || 4,
+        strokeIndex: i + 1,
+      }));
+      setHoles(defaultHoles);
     }
+  }, [holesData, holesLoading, params?.id]);
 
-    // Check hole numbers
-    const holeNumbers = holes.map(h => h.hole).sort((a, b) => a - b);
-    const expectedHoles = Array.from({ length: 18 }, (_, i) => i + 1);
-    if (JSON.stringify(holeNumbers) !== JSON.stringify(expectedHoles)) {
-      errors.push('Hole numbers must be exactly 1-18');
-    }
-
-    // Check stroke indexes
-    const strokeIndexes = holes.map(h => h.strokeIndex).sort((a, b) => a - b);
-    if (JSON.stringify(strokeIndexes) !== JSON.stringify(expectedHoles)) {
-      errors.push('Stroke indexes must be a unique permutation of 1-18');
-    }
-
-    // Check par values
-    const invalidPars = holes.filter(h => h.par < 3 || h.par > 6);
-    if (invalidPars.length > 0) {
-      errors.push('Par values must be between 3 and 6');
-    }
-
-    return errors;
+  const updateHole = (holeNum: number, field: 'par' | 'strokeIndex', value: number) => {
+    setHoles(prev => prev.map(h => 
+      h.hole === holeNum ? { ...h, [field]: value } : h
+    ));
+    setHasChanges(true);
   };
 
-  const handleHoleChange = (holeIndex: number, field: 'par' | 'strokeIndex', value: number) => {
-    const newHoles = [...editedHoles];
-    newHoles[holeIndex] = { ...newHoles[holeIndex], [field]: value };
-    setEditedHoles(newHoles);
+  const autofillPar = () => {
+    setHoles(prev => prev.map(h => ({
+      ...h,
+      par: DEFAULT_PARS[h.hole - 1] || 4
+    })));
+    setHasChanges(true);
+  };
 
-    // Validate on each change
-    const errors = validateHoles(newHoles);
-    setValidationErrors(errors);
+  const autofillSI = () => {
+    setHoles(prev => prev.map(h => ({
+      ...h,
+      strokeIndex: h.hole
+    })));
+    setHasChanges(true);
+  };
+
+  const reset = () => {
+    if (holesData?.holes) {
+      setHoles(holesData.holes);
+    } else {
+      const defaultHoles = Array.from({ length: 18 }, (_, i) => ({
+        hole: i + 1,
+        par: DEFAULT_PARS[i] || 4,
+        strokeIndex: i + 1,
+      }));
+      setHoles(defaultHoles);
+    }
+    setHasChanges(false);
   };
 
   const handleSave = () => {
-    const errors = validateHoles(editedHoles);
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
-
-    const holesData = editedHoles.map(hole => ({
-      hole: hole.hole,
-      par: hole.par,
-      strokeIndex: hole.strokeIndex,
-    }));
-
-    updateMutation.mutate(holesData);
+    updateMutation.mutate({ holes });
   };
 
-  const isValid = validationErrors.length === 0 && editedHoles.length === 18;
+  // Validation
+  const strokeIndexes = holes.map(h => h.strokeIndex);
+  const isValidSI = isPermutation1to18(strokeIndexes);
+  const hasInvalidPar = holes.some(h => h.par < 3 || h.par > 6);
+  const canSave = isValidSI && !hasInvalidPar && hasChanges;
 
-  if (isLoading) {
+  if (!match) return null;
+
+  if (courseLoading || holesLoading) {
     return (
-      <div className="container mx-auto p-4">
+      <div className="p-4">
         <div className="text-center">Loading course holes...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation('/courses')}
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Courses
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Course Holes</h1>
-          <p className="text-gray-600">{course?.name}</p>
+    <div className="p-4 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLocation('/courses')}
+            data-testid="button-back"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold">Course Holes</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {course?.name || 'Unknown Course'}
+            </p>
+          </div>
         </div>
       </div>
 
-      {validationErrors.length > 0 && (
-        <Alert className="mb-6" data-testid="alert-validation-errors">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <ul className="list-disc list-inside">
-              {validationErrors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+      {/* Validation Messages */}
+      {!isValidSI && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              Stroke Index must be a unique 1–18 set
+            </span>
+          </div>
+        </div>
       )}
 
+      {hasInvalidPar && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              Par values must be between 3 and 6
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={autofillPar} data-testid="button-autofill-par">
+          Autofill Par
+        </Button>
+        <Button variant="outline" size="sm" onClick={autofillSI} data-testid="button-autofill-si">
+          <Shuffle className="w-4 h-4 mr-1" />
+          Autofill SI 1–18
+        </Button>
+        <Button variant="outline" size="sm" onClick={reset} data-testid="button-reset">
+          <RotateCcw className="w-4 h-4 mr-1" />
+          Reset
+        </Button>
+        <Button 
+          onClick={handleSave}
+          disabled={!canSave || updateMutation.isPending}
+          data-testid="button-save"
+        >
+          <Save className="w-4 h-4 mr-1" />
+          {updateMutation.isPending ? 'Saving...' : 'Save'}
+        </Button>
+      </div>
+
+      {/* Holes Grid */}
       <Card>
         <CardHeader>
-          <CardTitle>Hole Configuration</CardTitle>
-          <CardDescription>
-            Set par values and stroke indexes for each hole. Stroke indexes should be a unique permutation of 1-18.
-          </CardDescription>
+          <CardTitle>18 Holes Configuration</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {editedHoles.map((hole, index) => (
-              <div
-                key={hole.hole}
-                className="border rounded-lg p-4 space-y-3"
-                data-testid={`hole-config-${hole.hole}`}
-              >
-                <h3 className="font-semibold text-center">Hole {hole.hole}</h3>
-                
-                <div className="space-y-2">
-                  <Label htmlFor={`par-${hole.hole}`}>Par</Label>
-                  <Select
-                    value={hole.par.toString()}
-                    onValueChange={(value) =>
-                      handleHoleChange(index, 'par', parseInt(value))
-                    }
-                  >
-                    <SelectTrigger data-testid={`select-par-${hole.hole}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="3">3</SelectItem>
-                      <SelectItem value="4">4</SelectItem>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="6">6</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            {/* Desktop View */}
+            <div className="hidden md:block">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-medium">Hole #</th>
+                    <th className="text-left p-3 font-medium">Par</th>
+                    <th className="text-left p-3 font-medium">Stroke Index</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {holes.map((hole, index) => (
+                    <tr key={hole.hole} className="border-b">
+                      <td className="p-3 font-medium">{hole.hole}</td>
+                      <td className="p-3">
+                        <Select 
+                          value={hole.par.toString()}
+                          onValueChange={(value) => updateHole(hole.hole, 'par', parseInt(value))}
+                        >
+                          <SelectTrigger className="w-20" data-testid={`par-select-${hole.hole}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="3">3</SelectItem>
+                            <SelectItem value="4">4</SelectItem>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="6">6</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-3">
+                        <Select 
+                          value={hole.strokeIndex.toString()}
+                          onValueChange={(value) => updateHole(hole.hole, 'strokeIndex', parseInt(value))}
+                        >
+                          <SelectTrigger className="w-20" data-testid={`si-select-${hole.hole}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 18 }, (_, i) => (
+                              <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                {i + 1}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor={`si-${hole.hole}`}>Stroke Index</Label>
-                  <Select
-                    value={hole.strokeIndex.toString()}
-                    onValueChange={(value) =>
-                      handleHoleChange(index, 'strokeIndex', parseInt(value))
-                    }
-                  >
-                    <SelectTrigger data-testid={`select-strokeindex-${hole.hole}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 18 }, (_, i) => i + 1).map(num => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Mobile View */}
+            <div className="md:hidden space-y-3 p-4">
+              {holes.map((hole) => (
+                <div key={hole.hole} className="border rounded-lg p-3">
+                  <div className="font-medium mb-2">Hole {hole.hole}</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm text-gray-600 dark:text-gray-400">Par</label>
+                      <Select 
+                        value={hole.par.toString()}
+                        onValueChange={(value) => updateHole(hole.hole, 'par', parseInt(value))}
+                      >
+                        <SelectTrigger data-testid={`par-select-${hole.hole}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="4">4</SelectItem>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="6">6</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-600 dark:text-gray-400">SI</label>
+                      <Select 
+                        value={hole.strokeIndex.toString()}
+                        onValueChange={(value) => updateHole(hole.hole, 'strokeIndex', parseInt(value))}
+                      >
+                        <SelectTrigger data-testid={`si-select-${hole.hole}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 18 }, (_, i) => (
+                            <SelectItem key={i + 1} value={(i + 1).toString()}>
+                              {i + 1}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-end gap-4 mt-6">
-            <Button
-              variant="outline"
-              onClick={() => setLocation('/courses')}
-              data-testid="button-cancel"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!isValid || updateMutation.isPending}
-              data-testid="button-save"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>

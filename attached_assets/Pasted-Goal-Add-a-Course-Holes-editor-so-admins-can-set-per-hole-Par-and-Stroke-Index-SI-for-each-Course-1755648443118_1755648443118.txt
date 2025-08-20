@@ -1,0 +1,101 @@
+Goal: Add a Course Holes editor so admins can set per-hole Par and Stroke Index (SI) for each Course, and expose a minimal API the scoring/leaderboard code can use. ONE cohesive feature → ONE checkpoint. Keep diffs tight and respect existing naming.
+
+Stack: Vite + Express + TypeScript + Prisma + SQLite + Wouter + React Query + Tailwind + vite-plugin-pwa + Dexie.
+
+IMPORTANT:
+- Do NOT rename or break existing endpoints for scoring (/api/hole-scores etc.) or results.
+- If CourseHole model already exists from the net tiebreak work, reuse it. If not, add it exactly as below.
+
+1) Prisma (DB)
+- Ensure this model exists (add if missing), and add the relation field on Course (holes?):
+  model CourseHole {
+    id           String  @id @default(cuid())
+    courseId     String
+    hole         Int     // 1..18
+    par          Int     // 3..6
+    strokeIndex  Int     // 1..18 unique within course
+    course       Course  @relation(fields: [courseId], references: [id])
+
+    @@unique([courseId, hole])
+    @@unique([courseId, strokeIndex])
+  }
+  // On Course:
+  // holes CourseHole[]   // (add if not present; harmless optional relation)
+
+- Create a migration; do NOT drop data.
+
+- Backfill script: scripts/backfillCourseHoles.ts
+  For each Course with no CourseHole rows, create 18 rows with:
+   - hole = 1..18
+   - par defaults: [4,4,4,3,4,4,5,3,4, 4,4,3,4,5,4,4,3,4] (fallback to 4 if array missing)
+   - strokeIndex = 1..18 (placeholder)
+  Add npm script "backfill:holes": "tsx scripts/backfillCourseHoles.ts"
+
+2) Server APIs (admin + public read)
+- GET /api/courses/:id/holes  -> 200 { holes: [{ id, hole, par, strokeIndex }] }, sorted by hole asc.
+  - 404 if course not found.
+
+- PATCH /api/courses/:id/holes (admin only; same auth as your other admin endpoints if present)
+  Body: { holes: Array<{ id?: string, hole: number, par: number, strokeIndex: number }> }
+  Validation:
+   - Must be exactly 18 items.
+   - hole is the set 1..18 each exactly once.
+   - par each in 3..6.
+   - strokeIndex is a permutation of 1..18 (unique).
+  Behavior:
+   - Upsert by (courseId,hole): update par & strokeIndex.
+   - Invalidate any in-memory cache for this course.
+
+- (Optional) Add a tiny 30s in-memory cache for GET /api/courses/:id/holes keyed by courseId; bust on PATCH.
+
+3) Admin UI — Course Holes Editor
+- New route: /courses/:id/holes (linked from Courses list “Edit Holes”).
+- Render a 18-row grid with columns:
+   Hole # | Par (select 3..6) | Stroke Index (select 1..18)
+- Buttons:
+   - “Autofill Par” (fills the default par array above)
+   - “Autofill SI 1–18”
+   - “Reset”
+   - “Save” (disabled until valid)
+- Validation UX:
+   - If SI values have duplicates or missing numbers, show small red helper: “Stroke Index must be a unique 1–18 set”.
+   - If Par outside 3..6, show a helper next to that row.
+- On Save: PATCH /api/courses/:id/holes and refetch GET /api/courses/:id/holes.
+- Keep it mobile-first; table can stack to 2 columns on narrow screens.
+
+4) Scoring page integration (read-only use)
+- Where the scoring screen fetches hole metadata, consume GET /api/courses/:courseId/holes.
+- Display 2 slim header rows under the hole numbers:
+   - Par row: 18 values.
+   - SI row: “SI 7” style, subdued text.
+- If the payload is invalid/incomplete (not 18 rows or SI not a permutation), hide SI row and any handicap dots; keep Par row if available.
+
+5) Utilities & Types
+- Shared helper in shared/handicapNet.ts (if not already):
+   export function strokesReceived(playingCH: number, strokeIndex: number): number {
+     const base = Math.floor(playingCH / 18);
+     const extra = strokeIndex <= (playingCH % 18) ? 1 : 0;
+     return base + extra;
+   }
+- Use this helper both in tie-break logic and in the scoring UI’s “handicap dots” overlay.
+- Add a tiny validator helper for the editor: isPermutation1to18(nums:number[]): boolean
+
+6) Tests (Vitest)
+- API:
+  - GET returns 18 items sorted by hole.
+  - PATCH rejects if holes not a 1..18 set or SI not permutation; accepts valid payload.
+- Utils:
+  - isPermutation1to18() true for [1..18], false for duplicates/missing.
+  - strokesReceived(): CH=0 → all 0; CH=5 → SI 1..5 are 1; CH=18 → all 1; CH=22 → all 1 plus SI 1..4 get +1.
+- (Optional) Component test for the editor’s “Save disabled until valid”.
+
+Docs
+- README: “Course Holes Editor (Par & Stroke Index)” with steps: open Courses → Edit Holes → set Par/SI → Save. Note that public/scoring use read-only holes; true Net tiebreak uses SI.
+
+Acceptance (must all pass before creating the single checkpoint):
+- I can open /courses/:id/holes, edit Par and SI for all 18 holes, and Save.
+- Validation enforces Par 3..6 and SI as unique 1..18.
+- GET /api/courses/:id/holes reflects changes; scoring page shows Par & SI rows.
+- If holes are incomplete/invalid, SI is hidden in UI and results fall back (if implemented); no crashes.
+- Tests pass; README updated.
+- EXACTLY ONE checkpoint. Do NOT enable Extended/High-Power/DI.

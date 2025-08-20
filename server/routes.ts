@@ -337,13 +337,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
+      // Clear cache for this course
+      courseHolesCache.delete(id);
+
       // Return updated holes
       const updatedHoles = await prisma.courseHole.findMany({
         where: { courseId: id },
         orderBy: { hole: "asc" },
+        select: { id: true, hole: true, par: true, strokeIndex: true },
       });
 
-      res.json(updatedHoles);
+      res.json({ holes: updatedHoles });
     } catch (error) {
       console.error("Error updating course holes:", error);
       res.status(500).json({ error: "Failed to update course holes" });

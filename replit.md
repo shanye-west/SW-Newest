@@ -23,6 +23,7 @@
 ✅ **Admin Conflicts Review dashboard** **completed** (enhanced server tracking, authentication)
 ✅ **Public Kiosk/TV mode** **completed** (auto-rotation, large type, QR sharing, fullscreen)
 ✅ **TRUE Net tiebreaker system** **completed** (per-hole SI & Par, net segment calculations, comprehensive tests)
+✅ **Course Holes editor** **completed** (admin Par & SI configuration, validation, mobile-responsive)
 
 ## Functional Rules (to follow in subsequent tasks)
 

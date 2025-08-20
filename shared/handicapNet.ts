@@ -51,3 +51,11 @@ export function isValidSIPermutation(strokeIndexes: number[]): boolean {
   
   return JSON.stringify(sorted) === JSON.stringify(expected);
 }
+
+/**
+ * Validate that numbers form a complete permutation of 1-18
+ * Helper for Course Holes editor
+ */
+export function isPermutation1to18(nums: number[]): boolean {
+  return isValidSIPermutation(nums);
+}

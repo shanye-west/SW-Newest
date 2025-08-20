@@ -51,6 +51,21 @@ The Group Scoring screen displays enhanced scorecard information including:
 
 This system provides accurate net scoring assistance while maintaining focus on the +/- scoring controls.
 
+### Course Holes Editor (Par & Stroke Index)
+
+Admins can configure per-hole Par and Stroke Index values for accurate handicap calculations:
+
+**Access**: Courses page → "Edit Holes" button (gear icon) → Course Holes editor
+**Features**:
+- Set Par (3-6) and Stroke Index (1-18, unique permutation) for each hole
+- Autofill buttons for default par values and sequential stroke indexes  
+- Real-time validation with error messaging
+- Mobile-responsive design with dedicated mobile layout
+- Changes saved via PATCH API with comprehensive validation
+
+**Usage**: Open Courses → Click gear icon → Edit Par/SI for all 18 holes → Save
+**Note**: Public scoring and leaderboards use read-only hole data; true Net tiebreaks use SI
+
 ### Technical Features
 - Mobile-first responsive design
 - Comprehensive error handling and validation
