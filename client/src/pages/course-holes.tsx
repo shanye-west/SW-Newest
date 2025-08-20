@@ -31,21 +31,35 @@ export default function CourseHoles() {
   const { toast } = useToast();
 
   // Fetch course info
-  const { data: course, isLoading: courseLoading } = useQuery({
+  const { data: course, isLoading: courseLoading } = useQuery<Course>({
     queryKey: ['/api/courses', params?.id],
     enabled: !!params?.id,
   });
 
   // Fetch existing holes
-  const { data: holesData, isLoading: holesLoading, refetch } = useQuery({
+  const { data: holesData, isLoading: holesLoading, refetch } = useQuery<{ holes: CourseHole[] }>({
     queryKey: ['/api/courses', params?.id, 'holes'],
     enabled: !!params?.id,
   });
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (data: { holes: CourseHole[] }) => 
-      apiRequest(`/api/courses/${params?.id}/holes`, 'PATCH', data),
+    mutationFn: async (data: { holes: CourseHole[] }) => {
+      const response = await fetch(`/api/courses/${params?.id}/holes`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update course holes');
+      }
+      
+      return response.json();
+    },
     onSuccess: () => {
       toast({
         title: "Success",
