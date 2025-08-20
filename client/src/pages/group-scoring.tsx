@@ -361,136 +361,235 @@ export default function GroupScoring() {
               {/* Header Rows */}
               <div className="sticky top-0 bg-white dark:bg-gray-900 border-b">
                 {/* Hole Numbers Row */}
-                <div className="grid grid-cols-19 gap-0 text-center text-xs font-medium">
+                <div className="grid grid-cols-22 gap-0 text-center text-xs font-medium">
                   <div className="p-2 border-r">Player</div>
-                  {Array.from({ length: 18 }, (_, i) => (
+                  {Array.from({ length: 9 }, (_, i) => (
                     <div key={i + 1} className="p-2 border-r">
                       {i + 1}
                     </div>
                   ))}
+                  <div className="p-2 border-r bg-blue-50 dark:bg-blue-900/20">OUT</div>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <div key={i + 10} className="p-2 border-r">
+                      {i + 10}
+                    </div>
+                  ))}
+                  <div className="p-2 border-r bg-green-50 dark:bg-green-900/20">IN</div>
+                  <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20">TOT</div>
                 </div>
                 
                 {/* Par Row */}
                 {courseHoles.length === 18 && (
-                  <div className="grid grid-cols-19 gap-0 text-center text-xs bg-gray-50 dark:bg-gray-800">
+                  <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-50 dark:bg-gray-800">
                     <div className="p-1 border-r text-gray-600 dark:text-gray-400">Par</div>
-                    {formatParRow(courseHoles).map((par, i) => (
+                    {formatParRow(courseHoles).slice(0, 9).map((par, i) => (
                       <div key={i} className="p-1 border-r text-gray-600 dark:text-gray-400">
                         {par}
                       </div>
                     ))}
+                    <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20">
+                      {formatParRow(courseHoles).slice(0, 9).reduce((sum, par) => sum + par, 0)}
+                    </div>
+                    {formatParRow(courseHoles).slice(9, 18).map((par, i) => (
+                      <div key={i + 9} className="p-1 border-r text-gray-600 dark:text-gray-400">
+                        {par}
+                      </div>
+                    ))}
+                    <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20">
+                      {formatParRow(courseHoles).slice(9, 18).reduce((sum, par) => sum + par, 0)}
+                    </div>
+                    <div className="p-1 text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900/20">
+                      {formatParRow(courseHoles).reduce((sum, par) => sum + par, 0)}
+                    </div>
                   </div>
                 )}
                 
                 {/* SI Row */}
                 {courseHoles.length === 18 && isValidSIPermutation(formatSIRow(courseHoles)) && (
-                  <div className="grid grid-cols-19 gap-0 text-center text-xs bg-gray-100 dark:bg-gray-700">
+                  <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-100 dark:bg-gray-700">
                     <div className="p-1 border-r text-gray-500 dark:text-gray-400">SI</div>
-                    {formatSIRow(courseHoles).map((si, i) => (
+                    {formatSIRow(courseHoles).slice(0, 9).map((si, i) => (
                       <div key={i} className="p-1 border-r text-gray-500 dark:text-gray-400">
                         {si}
                       </div>
                     ))}
+                    <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
+                    {formatSIRow(courseHoles).slice(9, 18).map((si, i) => (
+                      <div key={i + 9} className="p-1 border-r text-gray-500 dark:text-gray-400">
+                        {si}
+                      </div>
+                    ))}
+                    <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
+                    <div className="p-1 text-gray-500 dark:text-gray-400"></div>
                   </div>
                 )}
               </div>
               
               {/* Player Rows */}
-              {scoringData.entries.map((entry) => (
-                <div key={entry.id} className="grid grid-cols-19 gap-0 border-b">
-                  {/* Player Info */}
-                  <div className="p-2 border-r flex flex-col justify-center">
-                    <div className="font-medium text-sm">{entry.player.name}</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
-                      CH: {entry.playingCH}
-                    </div>
-                  </div>
-                  
-                  {/* Score Cells */}
-                  {Array.from({ length: 18 }, (_, holeIndex) => {
-                    const hole = holeIndex + 1;
-                    const score = localScores[entry.id]?.[hole] || 0;
-                    const strokesRcvd = courseHoles.length === 18 && showHandicapDots
-                      ? strokesReceived(entry.playingCH, courseHoles[holeIndex]?.strokeIndex || 1)
-                      : 0;
-                    
-                    const renderHandicapDots = (strokes: number) => {
-                      if (strokes === 0) return null;
-                      if (strokes === 1) return <span className="text-blue-500">•</span>;
-                      if (strokes === 2) return <span className="text-blue-500">••</span>;
-                      return <span className="text-blue-500 text-xs">•×{strokes}</span>;
-                    };
-                    
-                    return (
-                      <div 
-                        key={hole}
-                        className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
-                      >
-                        {/* Handicap Dots */}
-                        {showHandicapDots && strokesRcvd > 0 && (
-                          <div 
-                            className="absolute top-1 right-1 opacity-70"
-                            aria-hidden="true"
-                          >
-                            {renderHandicapDots(strokesRcvd)}
-                          </div>
-                        )}
-                        
-                        {/* Score Display */}
-                        <div className="text-lg font-medium mb-1">
-                          {score || '--'}
-                        </div>
-                        
-                        {/* +/- Buttons */}
-                        <div className="flex gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateScore(entry.id, hole, -1)}
-                            disabled={score <= 1}
-                            data-testid={`button-minus-${entry.id}-${hole}`}
-                            aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
-                          >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateScore(entry.id, hole, 1)}
-                            data-testid={`button-plus-${entry.id}-${hole}`}
-                            aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        </div>
+              {scoringData.entries.map((entry) => {
+                const playerScores = localScores[entry.id] || {};
+                const frontNine = Array.from({ length: 9 }, (_, i) => playerScores[i + 1] || 0).reduce((sum, score) => sum + score, 0);
+                const backNine = Array.from({ length: 9 }, (_, i) => playerScores[i + 10] || 0).reduce((sum, score) => sum + score, 0);
+                const totalScore = frontNine + backNine;
+
+                return (
+                  <div key={entry.id} className="grid grid-cols-22 gap-0 border-b">
+                    {/* Player Info */}
+                    <div className="p-2 border-r flex flex-col justify-center">
+                      <div className="font-medium text-sm">{entry.player.name}</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        CH: {entry.playingCH}
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
-              
-              {/* Totals Row */}
-              <div className="grid grid-cols-19 gap-0 bg-gray-50 dark:bg-gray-800 font-medium">
-                <div className="p-2 border-r">Total</div>
-                {scoringData.entries.map((entry, entryIndex) => (
-                  Array.from({ length: 18 }, (_, holeIndex) => {
-                    if (entryIndex === 0) {
-                      // Show hole totals for first player only (to avoid duplicates)
-                      const holeTotal = scoringData.entries.reduce((sum, e) => {
-                        return sum + (localScores[e.id]?.[holeIndex + 1] || 0);
-                      }, 0);
+                    </div>
+                    
+                    {/* Front 9 Score Cells */}
+                    {Array.from({ length: 9 }, (_, holeIndex) => {
+                      const hole = holeIndex + 1;
+                      const score = localScores[entry.id]?.[hole] || 0;
+                      const strokesRcvd = courseHoles.length === 18 && showHandicapDots
+                        ? strokesReceived(entry.playingCH, courseHoles[holeIndex]?.strokeIndex || 1)
+                        : 0;
+                      
+                      const renderHandicapDots = (strokes: number) => {
+                        if (strokes === 0) return null;
+                        if (strokes === 1) return <span className="text-blue-500">•</span>;
+                        if (strokes === 2) return <span className="text-blue-500">••</span>;
+                        return <span className="text-blue-500 text-xs">•×{strokes}</span>;
+                      };
+                      
                       return (
-                        <div key={holeIndex} className="p-2 border-r text-center text-sm">
-                          {holeTotal || '--'}
+                        <div 
+                          key={hole}
+                          className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
+                        >
+                          {/* Handicap Dots */}
+                          {showHandicapDots && strokesRcvd > 0 && (
+                            <div 
+                              className="absolute top-1 right-1 opacity-70"
+                              aria-hidden="true"
+                            >
+                              {renderHandicapDots(strokesRcvd)}
+                            </div>
+                          )}
+                          
+                          {/* Score Display */}
+                          <div className="text-lg font-medium mb-1">
+                            {score || '--'}
+                          </div>
+                          
+                          {/* +/- Buttons */}
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateScore(entry.id, hole, -1)}
+                              disabled={score <= 1}
+                              data-testid={`button-minus-${entry.id}-${hole}`}
+                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateScore(entry.id, hole, 1)}
+                              data-testid={`button-plus-${entry.id}-${hole}`}
+                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       );
-                    }
-                    return null;
-                  })
-                )).flat().filter(Boolean)}
-              </div>
+                    })}
+
+                    {/* Out Total */}
+                    <div className="border-r p-2 flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/20">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">OUT</div>
+                      <div className="text-lg font-bold">{frontNine || '--'}</div>
+                    </div>
+
+                    {/* Back 9 Score Cells */}
+                    {Array.from({ length: 9 }, (_, holeIndex) => {
+                      const hole = holeIndex + 10;
+                      const score = localScores[entry.id]?.[hole] || 0;
+                      const strokesRcvd = courseHoles.length === 18 && showHandicapDots
+                        ? strokesReceived(entry.playingCH, courseHoles[holeIndex + 9]?.strokeIndex || 1)
+                        : 0;
+                      
+                      const renderHandicapDots = (strokes: number) => {
+                        if (strokes === 0) return null;
+                        if (strokes === 1) return <span className="text-blue-500">•</span>;
+                        if (strokes === 2) return <span className="text-blue-500">••</span>;
+                        return <span className="text-blue-500 text-xs">•×{strokes}</span>;
+                      };
+                      
+                      return (
+                        <div 
+                          key={hole}
+                          className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
+                        >
+                          {/* Handicap Dots */}
+                          {showHandicapDots && strokesRcvd > 0 && (
+                            <div 
+                              className="absolute top-1 right-1 opacity-70"
+                              aria-hidden="true"
+                            >
+                              {renderHandicapDots(strokesRcvd)}
+                            </div>
+                          )}
+                          
+                          {/* Score Display */}
+                          <div className="text-lg font-medium mb-1">
+                            {score || '--'}
+                          </div>
+                          
+                          {/* +/- Buttons */}
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateScore(entry.id, hole, -1)}
+                              disabled={score <= 1}
+                              data-testid={`button-minus-${entry.id}-${hole}`}
+                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex + 9]?.par || 4}, SI ${courseHoles[holeIndex + 9]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateScore(entry.id, hole, 1)}
+                              data-testid={`button-plus-${entry.id}-${hole}`}
+                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex + 9]?.par || 4}, SI ${courseHoles[holeIndex + 9]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* In Total */}
+                    <div className="border-r p-2 flex flex-col items-center justify-center bg-green-50 dark:bg-green-900/20">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">IN</div>
+                      <div className="text-lg font-bold">{backNine || '--'}</div>
+                    </div>
+
+                    {/* Total Score */}
+                    <div className="p-2 flex flex-col items-center justify-center bg-yellow-50 dark:bg-yellow-900/20">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">TOTAL</div>
+                      <div className="text-xl font-bold">{totalScore || '--'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              
             </div>
           </div>
         </CardContent>

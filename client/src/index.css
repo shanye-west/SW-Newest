@@ -114,8 +114,18 @@
   grid-template-columns: 120px repeat(18, 1fr);
 }
 
+/* Custom grid for scorecard layout (player + 9 holes + out + 9 holes + in + total) */
+.grid-cols-22 {
+  display: grid;
+  grid-template-columns: 120px repeat(9, 1fr) 60px repeat(9, 1fr) 60px 60px;
+}
+
 @media (max-width: 768px) {
   .grid-cols-19 {
     grid-template-columns: 100px repeat(18, 60px);
+  }
+  
+  .grid-cols-22 {
+    grid-template-columns: 100px repeat(9, 50px) 50px repeat(9, 50px) 50px 50px;
   }
 }
