@@ -69,16 +69,17 @@ export default function CourseHoles() {
 
   // Initialize holes when data loads
   useEffect(() => {
-    if (holesData?.holes) {
+    if (holesData?.holes && holesData.holes.length > 0) {
       setHoles(holesData.holes);
     } else if (!holesLoading && params?.id) {
-      // Initialize with defaults if no holes exist
+      // Initialize with defaults if no holes exist or empty array
       const defaultHoles = Array.from({ length: 18 }, (_, i) => ({
         hole: i + 1,
-        par: DEFAULT_PARS[i] || 4,
-        strokeIndex: i + 1,
+        par: 4, // All par 4 as requested
+        strokeIndex: i + 1, // Stroke index matches hole number
       }));
       setHoles(defaultHoles);
+      setHasChanges(true); // Mark as having changes so user can save defaults
     }
   }, [holesData, holesLoading, params?.id]);
 
@@ -92,7 +93,7 @@ export default function CourseHoles() {
   const autofillPar = () => {
     setHoles(prev => prev.map(h => ({
       ...h,
-      par: DEFAULT_PARS[h.hole - 1] || 4
+      par: 4 // Set all holes to par 4
     })));
     setHasChanges(true);
   };
@@ -106,17 +107,18 @@ export default function CourseHoles() {
   };
 
   const reset = () => {
-    if (holesData?.holes) {
+    if (holesData?.holes && holesData.holes.length > 0) {
       setHoles(holesData.holes);
+      setHasChanges(false);
     } else {
       const defaultHoles = Array.from({ length: 18 }, (_, i) => ({
         hole: i + 1,
-        par: DEFAULT_PARS[i] || 4,
-        strokeIndex: i + 1,
+        par: 4, // All par 4 as requested
+        strokeIndex: i + 1, // Stroke index matches hole number
       }));
       setHoles(defaultHoles);
+      setHasChanges(true); // Keep changes marked for new courses
     }
-    setHasChanges(false);
   };
 
   const handleSave = () => {
