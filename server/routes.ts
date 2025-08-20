@@ -153,6 +153,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
 
+      // Check if player has entries in any tournaments
+      const entryCount = await prisma.entry.count({
+        where: { playerId: id },
+      });
+
+      if (entryCount > 0) {
+        return res.status(400).json({ 
+          error: `Cannot delete player. They are entered in ${entryCount} tournament(s). Remove them from tournaments first.` 
+        });
+      }
+
       await prisma.player.delete({
         where: { id },
       });
@@ -231,6 +242,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
 
+      // Check if course is used by any tournaments
+      const tournamentCount = await prisma.tournament.count({
+        where: { courseId: id },
+      });
+
+      if (tournamentCount > 0) {
+        return res.status(400).json({ 
+          error: `Cannot delete course. It is being used by ${tournamentCount} tournament(s). Delete those tournaments first.` 
+        });
+      }
+
+      // Delete course holes first (they reference the course)
+      await prisma.courseHole.deleteMany({
+        where: { courseId: id },
+      });
+
+      // Then delete the course
       await prisma.course.delete({
         where: { id },
       });
@@ -467,8 +495,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
 
-      await prisma.tournament.delete({
-        where: { id },
+      // Use transaction to delete all related data
+      await prisma.$transaction(async (tx) => {
+        // Delete all hole scores for this tournament
+        await tx.holeScore.deleteMany({
+          where: {
+            entry: {
+              tournamentId: id,
+            },
+          },
+        });
+
+        // Delete all entries (this will cascade to audit events)
+        await tx.entry.deleteMany({
+          where: { tournamentId: id },
+        });
+
+        // Delete all groups
+        await tx.group.deleteMany({
+          where: { tournamentId: id },
+        });
+
+        // Delete all audit events
+        await tx.auditEvent.deleteMany({
+          where: { tournamentId: id },
+        });
+
+        // Finally delete the tournament
+        await tx.tournament.delete({
+          where: { id },
+        });
       });
 
       res.status(204).send();
