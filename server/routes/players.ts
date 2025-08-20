@@ -71,6 +71,17 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Check if player has entries in any tournaments
+    const entryCount = await prisma.entry.count({
+      where: { playerId: id },
+    });
+
+    if (entryCount > 0) {
+      return res.status(400).json({ 
+        error: `Cannot delete player. They are entered in ${entryCount} tournament(s). Remove them from tournaments first.` 
+      });
+    }
+    
     await prisma.player.delete({
       where: { id }
     });
