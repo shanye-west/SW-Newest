@@ -1,9 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+const server = createServer(app);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
