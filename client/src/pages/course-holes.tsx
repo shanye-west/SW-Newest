@@ -45,10 +45,7 @@ export default function CourseHoles() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: (data: { holes: CourseHole[] }) => 
-      apiRequest(`/api/courses/${params?.id}/holes`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      apiRequest(`/api/courses/${params?.id}/holes`, 'PATCH', data),
     onSuccess: () => {
       toast({
         title: "Success",
