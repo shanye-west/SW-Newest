@@ -1023,8 +1023,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Tournament not found" });
       }
 
-      // Generate hole pars array (simplified)
-      const holePars = Array(18).fill(4);
+      // Get actual hole pars from course holes or default to par 4
+      let holePars = Array(18).fill(4);
+      try {
+        const courseHoles = await prisma.courseHole.findMany({
+          where: { courseId: tournament.courseId },
+          orderBy: { hole: 'asc' }
+        });
+        if (courseHoles.length === 18) {
+          holePars = courseHoles.map(ch => ch.par);
+        }
+      } catch (error) {
+        console.error('Error fetching course holes for skins:', error);
+      }
 
       // Calculate skins
       const skinsData = calculateGrossSkins(
@@ -1176,8 +1187,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return null;
     }
 
-    // Generate hole pars array (simplified - assume par 4 for all holes)
-    const holePars = Array(18).fill(4);
+    // Get actual hole pars from course holes or default to par 4
+    let holePars = Array(18).fill(4);
+    try {
+      const courseHoles = await prisma.courseHole.findMany({
+        where: { courseId: tournament.courseId },
+        orderBy: { hole: 'asc' }
+      });
+      if (courseHoles.length === 18) {
+        holePars = courseHoles.map(ch => ch.par);
+      }
+    } catch (error) {
+      console.error('Error fetching course holes for results:', error);
+    }
 
     // Calculate leaderboards using scoring utility
     const leaderboards = calculateLeaderboards(
@@ -1215,15 +1237,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       gross: leaderboards.gross,
       net: leaderboards.net,
       skins: {
-        results: skinsData.results,
-        leaderboard: skinsLeaderboard,
-        totalSkins: skinsData.totalSkins,
-        potAmount: tournament.potAmount,
-        payoutPerSkin:
-          tournament.potAmount && skinsData.totalSkins > 0
-            ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) /
-              100
+        perHole: skinsData.results,
+        perPlayer: skinsData.leaderboard.reduce((acc: any, player: any) => {
+          acc[player.entryId] = {
+            playerName: player.playerName,
+            count: player.skins
+          };
+          return acc;
+        }, {}),
+        payout: {
+          totalSkins: skinsData.totalSkins,
+          potAmount: tournament.potAmount,
+          payoutPerSkin: tournament.potAmount && skinsData.totalSkins > 0
+            ? Math.floor((tournament.potAmount * 100) / skinsData.totalSkins) / 100
             : 0,
+          perPlayerPayouts: skinsLeaderboard.reduce((acc: any, player: any) => {
+            acc[player.entryId] = player.payout || 0;
+            return acc;
+          }, {})
+        }
       },
       coursePar: tournament.course.par,
       updated: new Date(),
