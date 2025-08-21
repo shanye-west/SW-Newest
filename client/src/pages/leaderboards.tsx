@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ interface LeaderboardEntry {
   position: number;
   tied: boolean;
   holeScores: { [hole: number]: number };
+  groupId?: string; // Add groupId for navigation
 }
 
 interface SkinsResult {
@@ -38,6 +39,7 @@ interface SkinsLeaderboard {
 
 export default function Leaderboards() {
   const [match, params] = useRoute("/tournaments/:id/leaderboards");
+  const [, setLocation] = useLocation();
   const [grossLeaderboard, setGrossLeaderboard] = useState<LeaderboardEntry[]>(
     [],
   );
@@ -110,10 +112,15 @@ export default function Leaderboards() {
     }
   };
 
-  const formatScore = (score: number, par: number): string => {
-    const toPar = score - par;
+  const formatScore = (toPar: number): string => {
     if (toPar === 0) return "E";
     return toPar > 0 ? `+${toPar}` : `${toPar}`;
+  };
+
+  const handlePlayerClick = (entry: LeaderboardEntry) => {
+    if (entry.groupId && params?.id) {
+      setLocation(`/tournaments/${params.id}/score/${entry.groupId}`);
+    }
   };
 
   const getPositionDisplay = (entry: LeaderboardEntry): string => {
@@ -184,7 +191,13 @@ export default function Leaderboards() {
                         )}
                       </div>
                       <div>
-                        <h3 className="font-medium">{entry.playerName}</h3>
+                        <h3 
+                          className="font-medium text-blue-600 cursor-pointer hover:underline"
+                          onClick={() => handlePlayerClick(entry)}
+                          data-testid={`link-player-${entry.entryId}`}
+                        >
+                          {entry.playerName}
+                        </h3>
                         <p className="text-sm text-gray-600">
                           CH: {entry.courseHandicap}
                         </p>
@@ -192,7 +205,7 @@ export default function Leaderboards() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-bold">
-                        {formatScore(entry.grossTotal, coursePar)}
+                        {formatScore(entry.toPar)}
                       </div>
                       <div className="text-sm text-gray-600">
                         Total: {entry.grossTotal}
@@ -237,7 +250,13 @@ export default function Leaderboards() {
                         )}
                       </div>
                       <div>
-                        <h3 className="font-medium">{entry.playerName}</h3>
+                        <h3 
+                          className="font-medium text-blue-600 cursor-pointer hover:underline"
+                          onClick={() => handlePlayerClick(entry)}
+                          data-testid={`link-player-${entry.entryId}`}
+                        >
+                          {entry.playerName}
+                        </h3>
                         <p className="text-sm text-gray-600">
                           Gross: {entry.grossTotal} • CH: {entry.courseHandicap}{" "}
                           • Playing: {entry.playingCH}
@@ -246,7 +265,7 @@ export default function Leaderboards() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-bold">
-                        {formatScore(entry.netTotal, coursePar)}
+                        {formatScore(entry.netToPar)}
                       </div>
                       <div className="text-sm text-gray-600">
                         Net: {entry.netTotal}

@@ -106,7 +106,8 @@ export function calculateLeaderboards(
       netToPar: netTotal - parForCompletedHoles,
       position: 0, // Will be set after sorting
       tied: false, // Will be set after sorting
-      holeScores: holeScoresMap
+      holeScores: holeScoresMap,
+      groupId: entry.groupId
     };
   }).filter(entry => entry.grossTotal > 0); // Only include entries with scores
 
