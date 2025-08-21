@@ -1,16 +1,14 @@
 import React from 'react';
 import { Link } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, MapPin, Trophy, UsersIcon, Home, AlertTriangle } from 'lucide-react';
+import { Users, MapPin, Trophy } from 'lucide-react';
 
 export default function AdminDashboard() {
   const adminLinks = [
-    { href: '/', label: 'Home', icon: Home },
     { href: '/players', label: 'Players', icon: Users },
     { href: '/courses', label: 'Courses', icon: MapPin },
     { href: '/tournaments', label: 'Tournaments', icon: Trophy },
-    { href: '/groups', label: 'Groups', icon: UsersIcon },
-    { href: '/admin/conflicts', label: 'Conflicts Review', icon: AlertTriangle },
+    // { href: '/admin/conflicts', label: 'Conflicts Review', icon: AlertTriangle }, // Not needed currently
   ];
 
   return (
@@ -42,7 +40,7 @@ export default function AdminDashboard() {
           <li>1. Add players with their handicap index (HI)</li>
           <li>2. Create golf courses with par, slope, and rating</li>
           <li>3. Set up tournaments with course and settings</li>
-          <li>4. Organize players into groups with tee times</li>
+          <li>4. Use tournament details to organize players into groups</li>
           <li>5. Use the PWA for mobile scoring during rounds</li>
         </ol>
       </div>

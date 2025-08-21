@@ -72,7 +72,9 @@ export default function Leaderboards() {
 
   const fetchLeaderboards = async (tournamentId: string) => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/leaderboards`);
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/leaderboards`,
+      );
       if (response.ok) {
         const data = await response.json();
         setGrossLeaderboard(data.gross);
@@ -191,7 +193,7 @@ export default function Leaderboards() {
                         )}
                       </div>
                       <div>
-                        <h3 
+                        <h3
                           className="font-medium text-blue-600 cursor-pointer hover:underline"
                           onClick={() => handlePlayerClick(entry)}
                           data-testid={`link-player-${entry.entryId}`}
@@ -199,7 +201,8 @@ export default function Leaderboards() {
                           {entry.playerName}
                         </h3>
                         <p className="text-sm text-gray-600">
-                          CH: {entry.courseHandicap}
+                          {" "}
+                          {entry.courseHandicap}
                         </p>
                       </div>
                     </div>
@@ -250,7 +253,7 @@ export default function Leaderboards() {
                         )}
                       </div>
                       <div>
-                        <h3 
+                        <h3
                           className="font-medium text-blue-600 cursor-pointer hover:underline"
                           onClick={() => handlePlayerClick(entry)}
                           data-testid={`link-player-${entry.entryId}`}
@@ -258,8 +261,7 @@ export default function Leaderboards() {
                           {entry.playerName}
                         </h3>
                         <p className="text-sm text-gray-600">
-                          Gross: {entry.grossTotal} • CH: {entry.courseHandicap}{" "}
-                          • Playing: {entry.playingCH}
+                          Course Handicap: {entry.courseHandicap}{" "}
                         </p>
                       </div>
                     </div>
@@ -268,7 +270,7 @@ export default function Leaderboards() {
                         {formatScore(entry.netToPar)}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Net: {entry.netTotal}
+                        Net Total: {entry.netTotal}
                       </div>
                     </div>
                   </div>
@@ -370,7 +372,7 @@ export default function Leaderboards() {
                       <div className="text-right">
                         {result.isPush ? (
                           <span className="text-orange-600">
-                            Push ({result.pushCount} at {result.pushScore})
+                            Push ({result.pushCount} players tied with {result.pushScore})
                           </span>
                         ) : (
                           <span className="text-green-600 font-medium">
