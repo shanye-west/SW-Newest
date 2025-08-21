@@ -87,13 +87,26 @@ export function calculateLeaderboards(
     });
 
     const grossTotal = entry.scores.reduce((sum, score) => sum + score.strokes, 0);
-    const netTotal = grossTotal - entry.playingCH;
-
+    
     // Calculate par for completed holes only
     const completedHoles = entry.scores.map(score => score.hole);
     const parForCompletedHoles = courseHoles && courseHoles.length === 18
       ? completedHoles.reduce((sum, hole) => sum + (courseHoles[hole - 1]?.par || 4), 0)
       : completedHoles.length * 4; // Default to par 4 per hole
+
+    // Calculate net total correctly for partial rounds
+    // For partial rounds, only use the handicap strokes allocated to holes played
+    const handicapStrokesForPlayedHoles = courseHoles && courseHoles.length === 18
+      ? completedHoles.reduce((sum, hole) => {
+          const holeData = courseHoles[hole - 1];
+          if (holeData && holeData.strokeIndex <= entry.playingCH) {
+            return sum + 1;
+          }
+          return sum;
+        }, 0)
+      : Math.round((entry.playingCH / 18) * completedHoles.length); // Proportional allocation as fallback
+    
+    const netTotal = grossTotal - handicapStrokesForPlayedHoles;
 
     return {
       entryId: entry.id,
@@ -111,13 +124,20 @@ export function calculateLeaderboards(
     };
   }).filter(entry => entry.grossTotal > 0); // Only include entries with scores
 
-  // Sort and assign positions for gross
-  const grossSorted = resolveUSGATiebreaker([...leaderboardEntries]);
+  // Sort and assign positions for gross - sort by toPar first (lowest wins)
+  const grossSorted = [...leaderboardEntries].sort((a, b) => {
+    // Sort by toPar first (lowest wins)
+    const toParDiff = a.toPar - b.toPar;
+    if (toParDiff !== 0) return toParDiff;
+    
+    // If tied on toPar, use USGA tiebreaker
+    return resolveUSGATiebreaker([a, b])[0] === a ? -1 : 1;
+  });
   let currentPos = 1;
   let tiedGroup: LeaderboardEntry[] = [];
 
   grossSorted.forEach((entry, index) => {
-    if (index === 0 || entry.grossTotal !== grossSorted[index - 1].grossTotal) {
+    if (index === 0 || entry.toPar !== grossSorted[index - 1].toPar) {
       // Finalize previous tie group
       if (tiedGroup.length > 1) {
         tiedGroup.forEach(tiedEntry => {
@@ -144,8 +164,9 @@ export function calculateLeaderboards(
 
   // Create separate arrays for net leaderboard with separate position tracking
   const netSorted = [...leaderboardEntries].sort((a, b) => {
-    const netDiff = a.netTotal - b.netTotal;
-    if (netDiff !== 0) return netDiff;
+    // Sort by netToPar first (lowest wins)
+    const netToParDiff = a.netToPar - b.netToPar;
+    if (netToParDiff !== 0) return netToParDiff;
     
     // Use TRUE Net tiebreaker if course holes are available, otherwise fallback to Gross segments
     if (courseHoles && courseHolesValid) {
@@ -166,7 +187,7 @@ export function calculateLeaderboards(
   const netLeaderboard = netSorted.map((entry, index) => {
     const netEntry = { ...entry }; // Create new object
     
-    if (index === 0 || entry.netTotal !== netSorted[index - 1].netTotal) {
+    if (index === 0 || entry.netToPar !== netSorted[index - 1].netToPar) {
       if (tiedGroup.length > 1) {
         tiedGroup.forEach(tiedEntry => {
           tiedEntry.tied = true;

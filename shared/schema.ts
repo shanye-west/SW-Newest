@@ -220,7 +220,7 @@ export type LeaderboardEntry = {
   position: number;
   tied: boolean;
   holeScores: { [hole: number]: number };
-  groupId?: string;
+  groupId?: string | null;
 };
 
 export type SkinsResult = {
