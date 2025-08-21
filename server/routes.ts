@@ -466,7 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/tournaments/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { potAmount, participantsForSkins } = req.body;
+      const { potAmount, participantsForSkins, grossPrize, netPrize } = req.body;
 
       const tournament = await prisma.tournament.update({
         where: { id },
@@ -476,6 +476,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             participantsForSkins !== undefined
               ? participantsForSkins
               : undefined,
+          grossPrize: grossPrize !== undefined ? grossPrize : undefined,
+          netPrize: netPrize !== undefined ? netPrize : undefined,
         },
         include: {
           course: {
@@ -982,9 +984,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate hole pars array (simplified - assume par 4 for all holes)
       const holePars = Array(18).fill(4);
 
+      // Add hasPaid field to entries if missing for backwards compatibility
+      const entriesWithPayment = tournament.entries.map(entry => ({
+        ...entry,
+        hasPaid: entry.hasPaid || false
+      }));
+
       // Calculate leaderboards using scoring utility with course holes for TRUE Net tiebreaking
       const leaderboards = calculateLeaderboards(
-        tournament.entries,
+        entriesWithPayment,
         tournament.course.par,
         tournament.course.holes,
       );
@@ -1037,9 +1045,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Error fetching course holes for skins:', error);
       }
 
+      // Add hasPaid field to entries if missing for backwards compatibility
+      const entriesWithPayment = tournament.entries.map(entry => ({
+        ...entry,
+        hasPaid: entry.hasPaid || false
+      }));
+
       // Calculate skins
       const skinsData = calculateGrossSkins(
-        tournament.entries,
+        entriesWithPayment,
         tournament.course.par,
         holePars,
       );
@@ -1201,15 +1215,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error fetching course holes for results:', error);
     }
 
+    // Add hasPaid field to entries if missing for backwards compatibility
+    const entriesWithPayment = tournament.entries.map(entry => ({
+      ...entry,
+      hasPaid: entry.hasPaid || false
+    }));
+
     // Calculate leaderboards using scoring utility
     const leaderboards = calculateLeaderboards(
-      tournament.entries,
+      entriesWithPayment,
       tournament.course.par,
+      tournament.course.holes,
     );
 
     // Calculate skins
     const skinsData = calculateGrossSkins(
-      tournament.entries,
+      entriesWithPayment,
       tournament.course.par,
       holePars,
     );
@@ -1767,7 +1788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Tournament not found" });
         }
 
-        if (req.adminPasscode !== tournament.passcode) {
+        if ((req as any).adminPasscode !== tournament.passcode) {
           return res.status(403).json({ error: "Invalid admin passcode" });
         }
 
@@ -1821,7 +1842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Tournament not found" });
         }
 
-        if (req.adminPasscode !== tournament.passcode) {
+        if ((req as any).adminPasscode !== tournament.passcode) {
           return res.status(403).json({ error: "Invalid admin passcode" });
         }
 
@@ -1872,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Tournament not found" });
         }
 
-        if (req.adminPasscode !== tournament.passcode) {
+        if ((req as any).adminPasscode !== tournament.passcode) {
           return res.status(403).json({ error: "Invalid admin passcode" });
         }
 
@@ -1888,6 +1909,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     },
   );
+
+  // Update entry payment status endpoint
+  app.patch("/api/tournaments/:tournamentId/entries/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { hasPaid } = req.body;
+
+      const entry = await prisma.entry.update({
+        where: { id },
+        data: { hasPaid: !!hasPaid },
+        include: {
+          player: true,
+        },
+      });
+
+      res.json(entry);
+    } catch (error) {
+      console.error("Error updating entry payment status:", error);
+      res.status(500).json({ error: "Failed to update payment status" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

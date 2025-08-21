@@ -47,6 +47,8 @@ export const tournaments = sqliteTable("tournaments", {
   potAmount: integer("pot_amount"),
   participantsForSkins: integer("participants_for_skins"),
   skinsCarry: integer("skins_carry", { mode: "boolean" }).notNull().default(false),
+  grossPrize: integer("gross_prize"),
+  netPrize: integer("net_prize"),
   isFinal: integer("is_final", { mode: "boolean" }).notNull().default(false),
   finalizedAt: integer("finalized_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -79,6 +81,7 @@ export const entries = sqliteTable("entries", {
   courseHandicap: integer("course_handicap").notNull(),
   playingCH: integer("playing_ch").notNull(),
   groupId: text("group_id"),
+  hasPaid: integer("has_paid", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
@@ -114,6 +117,8 @@ export const insertTournamentSchema = createInsertSchema(tournaments, {
   passcode: z.string().min(4, "Passcode must be at least 4 characters"),
   potAmount: z.number().int().min(0).optional(),
   participantsForSkins: z.number().int().min(1).optional(),
+  grossPrize: z.number().int().min(0).optional(),
+  netPrize: z.number().int().min(0).optional(),
 });
 
 export const insertGroupSchema = createInsertSchema(groups, {
@@ -126,6 +131,7 @@ export const insertEntrySchema = createInsertSchema(entries, {
   playerId: z.string().min(1, "Player ID is required"),
   courseHandicap: z.number().int().min(0).max(18),
   playingCH: z.number().int().min(0).max(18),
+  hasPaid: z.boolean().optional(),
 });
 
 export const insertHoleScoreSchema = createInsertSchema(holeScores, {
