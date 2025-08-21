@@ -1118,6 +1118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tournament: {
           id: group.tournament.id,
           name: group.tournament.name,
+          courseId: group.tournament.courseId,
           course: {
             name: group.tournament.course.name,
             par: group.tournament.course.par,

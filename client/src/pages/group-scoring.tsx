@@ -145,6 +145,20 @@ export default function GroupScoring() {
     }
   }, [isOnline, refetchScores]);
 
+  // Fetch course holes data
+  const fetchCourseHoles = async (courseId: string) => {
+    try {
+      const response = await fetch(`/api/courses/${courseId}/holes`);
+      if (response.ok) {
+        const data = await response.json();
+        setCourseHoles(data.holes || []);
+        console.log('Course holes loaded:', data.holes?.length || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching course holes:', error);
+    }
+  };
+
   // Fetch group scoring data and existing scores
   const fetchGroupScoringData = async (tournamentId: string, groupId: string) => {
     try {
@@ -152,6 +166,12 @@ export default function GroupScoring() {
       if (response.ok) {
         const data = await response.json();
         setScoringData(data);
+        
+        // Fetch course holes if we have tournament data
+        if (data.tournament?.courseId) {
+          await fetchCourseHoles(data.tournament.courseId);
+        }
+        
         // Initialize local scores with server data
         if (data.entries) {
           const scores: { [entryId: string]: { [hole: number]: number } } = {};
@@ -663,6 +683,8 @@ export default function GroupScoring() {
               <p>Pending Queue: {pendingSyncCount} items</p>
               <p>Flushing: {isFlushing ? 'Yes' : 'No'}</p>
               <p>Sync Status: {syncStatus}</p>
+              <p>Course Holes: {courseHoles.length}</p>
+              <p>Show Handicap Dots: {showHandicapDots ? 'Yes' : 'No'}</p>
             </div>
           </CardContent>
         </Card>
