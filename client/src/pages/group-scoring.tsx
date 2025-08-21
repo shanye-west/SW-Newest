@@ -83,13 +83,16 @@ export default function GroupScoring() {
         const response = await fetch(`/api/courses/${scoringData.tournament.courseId}/holes`);
         if (response.ok) {
           const data = await response.json();
+          console.log('Course holes data:', data); // Debug log
           if (data.holes && Array.isArray(data.holes) && data.holes.length === 18) {
             setCourseHoles(data.holes);
+            console.log('Set course holes:', data.holes); // Debug log
+          } else {
+            console.log('Course holes not found or invalid length:', data); // Debug log
           }
         }
       } catch (error) {
         console.error('Error fetching course holes:', error);
-        // Silently fail - holes are optional for scoring functionality
       }
     };
 
