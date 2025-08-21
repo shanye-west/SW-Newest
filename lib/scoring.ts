@@ -89,6 +89,12 @@ export function calculateLeaderboards(
     const grossTotal = entry.scores.reduce((sum, score) => sum + score.strokes, 0);
     const netTotal = grossTotal - entry.playingCH;
 
+    // Calculate par for completed holes only
+    const completedHoles = entry.scores.map(score => score.hole);
+    const parForCompletedHoles = courseHoles && courseHoles.length === 18
+      ? completedHoles.reduce((sum, hole) => sum + (courseHoles[hole - 1]?.par || 4), 0)
+      : completedHoles.length * 4; // Default to par 4 per hole
+
     return {
       entryId: entry.id,
       playerName: entry.player.name,
@@ -96,8 +102,8 @@ export function calculateLeaderboards(
       playingCH: entry.playingCH,
       grossTotal,
       netTotal,
-      toPar: grossTotal - coursePar,
-      netToPar: netTotal - coursePar,
+      toPar: grossTotal - parForCompletedHoles,
+      netToPar: netTotal - parForCompletedHoles,
       position: 0, // Will be set after sorting
       tied: false, // Will be set after sorting
       holeScores: holeScoresMap

@@ -459,9 +459,9 @@ export default function GroupScoring() {
                       
                       const renderHandicapDots = (strokes: number) => {
                         if (strokes === 0) return null;
-                        if (strokes === 1) return <span className="text-blue-500">•</span>;
-                        if (strokes === 2) return <span className="text-blue-500">••</span>;
-                        return <span className="text-blue-500 text-xs">•×{strokes}</span>;
+                        if (strokes === 1) return <span className="text-blue-600 font-bold text-lg">•</span>;
+                        if (strokes === 2) return <span className="text-blue-600 font-bold text-lg">••</span>;
+                        return <span className="text-blue-600 font-bold text-sm">•×{strokes}</span>;
                       };
                       
                       return (
@@ -472,7 +472,7 @@ export default function GroupScoring() {
                           {/* Handicap Dots */}
                           {strokesRcvd > 0 && (
                             <div 
-                              className="absolute top-1 right-1 opacity-70"
+                              className="absolute top-1 right-1 opacity-100 z-10"
                               aria-hidden="true"
                             >
                               {renderHandicapDots(strokesRcvd)}
@@ -539,9 +539,9 @@ export default function GroupScoring() {
                       
                       const renderHandicapDots = (strokes: number) => {
                         if (strokes === 0) return null;
-                        if (strokes === 1) return <span className="text-blue-500">•</span>;
-                        if (strokes === 2) return <span className="text-blue-500">••</span>;
-                        return <span className="text-blue-500 text-xs">•×{strokes}</span>;
+                        if (strokes === 1) return <span className="text-blue-600 font-bold text-lg">•</span>;
+                        if (strokes === 2) return <span className="text-blue-600 font-bold text-lg">••</span>;
+                        return <span className="text-blue-600 font-bold text-sm">•×{strokes}</span>;
                       };
                       
                       return (
@@ -552,7 +552,7 @@ export default function GroupScoring() {
                           {/* Handicap Dots */}
                           {strokesRcvd > 0 && (
                             <div 
-                              className="absolute top-1 right-1 opacity-70"
+                              className="absolute top-1 right-1 opacity-100 z-10"
                               aria-hidden="true"
                             >
                               {renderHandicapDots(strokesRcvd)}
@@ -652,128 +652,6 @@ export default function GroupScoring() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {scoringData.entries.map((entry) => (
-          <Card key={entry.id}>
-            <CardContent className="p-4">
-              <h3 className="font-medium mb-2">{entry.player.name}</h3>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Gross Total:</span>
-                  <div className="text-right">
-                    <span className="font-medium tabular-nums">
-                      {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) || '--'}
-                    </span>
-                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
-                      <div className={`text-xs tabular-nums ${
-                        (() => {
-                          const playerScores = localScores[entry.id] || {};
-                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                          const totalParForPlayedHoles = courseHoles.length === 18 
-                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                const holeNum = parseInt(hole);
-                                return sum + (courseHoles[holeNum - 1]?.par || 4);
-                              }, 0)
-                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                          return totalScore - totalParForPlayedHoles;
-                        })() === 0 
-                          ? 'text-gray-500' 
-                          : (() => {
-                              const playerScores = localScores[entry.id] || {};
-                              const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                              const totalParForPlayedHoles = courseHoles.length === 18 
-                                ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                    const holeNum = parseInt(hole);
-                                    return sum + (courseHoles[holeNum - 1]?.par || 4);
-                                  }, 0)
-                                : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                              return totalScore - totalParForPlayedHoles;
-                            })() > 0 
-                            ? 'text-red-600' 
-                            : 'text-green-600'
-                      }`}>
-                        {(() => {
-                          const playerScores = localScores[entry.id] || {};
-                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                          const totalParForPlayedHoles = courseHoles.length === 18 
-                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                const holeNum = parseInt(hole);
-                                return sum + (courseHoles[holeNum - 1]?.par || 4);
-                              }, 0)
-                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                          const toPar = totalScore - totalParForPlayedHoles;
-                          return toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar;
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span>Playing CH:</span>
-                  <span className="tabular-nums">{entry.playingCH}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Net Total:</span>
-                  <div className="text-right">
-                    <span className="font-medium tabular-nums">
-                      {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) 
-                        ? Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH
-                        : '--'}
-                    </span>
-                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
-                      <div className={`text-xs tabular-nums ${
-                        (() => {
-                          const playerScores = localScores[entry.id] || {};
-                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                          const totalParForPlayedHoles = courseHoles.length === 18 
-                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                const holeNum = parseInt(hole);
-                                return sum + (courseHoles[holeNum - 1]?.par || 4);
-                              }, 0)
-                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                          const netScore = totalScore - entry.playingCH;
-                          return netScore - totalParForPlayedHoles;
-                        })() === 0 
-                          ? 'text-gray-500' 
-                          : (() => {
-                              const playerScores = localScores[entry.id] || {};
-                              const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                              const totalParForPlayedHoles = courseHoles.length === 18 
-                                ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                    const holeNum = parseInt(hole);
-                                    return sum + (courseHoles[holeNum - 1]?.par || 4);
-                                  }, 0)
-                                : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                              const netScore = totalScore - entry.playingCH;
-                              return netScore - totalParForPlayedHoles;
-                            })() > 0 
-                            ? 'text-red-600' 
-                            : 'text-green-600'
-                      }`}>
-                        {(() => {
-                          const playerScores = localScores[entry.id] || {};
-                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
-                          const totalParForPlayedHoles = courseHoles.length === 18 
-                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
-                                const holeNum = parseInt(hole);
-                                return sum + (courseHoles[holeNum - 1]?.par || 4);
-                              }, 0)
-                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
-                          const netScore = totalScore - entry.playingCH;
-                          const netToPar = netScore - totalParForPlayedHoles;
-                          return netToPar === 0 ? 'E' : netToPar > 0 ? `+${netToPar}` : netToPar;
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       {/* Debug Info (only in dev) */}
       {process.env.NODE_ENV === 'development' && (
