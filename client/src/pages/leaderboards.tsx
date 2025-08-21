@@ -70,7 +70,7 @@ export default function Leaderboards() {
 
   const fetchLeaderboards = async (tournamentId: string) => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/results`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/leaderboards`);
       if (response.ok) {
         const data = await response.json();
         setGrossLeaderboard(data.gross);
@@ -87,31 +87,23 @@ export default function Leaderboards() {
 
   const fetchSkins = async (tournamentId: string) => {
     try {
-      const response = await fetch(`/api/tournaments/${tournamentId}/results`);
+      const response = await fetch(`/api/tournaments/${tournamentId}/skins`);
       if (response.ok) {
         const data = await response.json();
-        if (data.skins) {
-          setSkinsResults(data.skins.perHole || []);
+        setSkinsResults(data.results || []);
 
-          // Convert perPlayer object to leaderboard array with payouts
-          const leaderboard = Object.entries(data.skins.perPlayer || {})
-            .map(([entryId, player]: [string, any]) => ({
-              playerName: player.playerName,
-              entryId,
-              skins: player.count,
-              payout: data.skins.payout?.perPlayerPayouts?.[entryId] || 0,
-            }))
-            .sort((a, b) => b.skins - a.skins);
+        // Convert leaderboard array to the expected format
+        const leaderboard = (data.leaderboard || []).map((player: any) => ({
+          playerName: player.playerName,
+          entryId: player.entryId,
+          skins: player.skins,
+          payout: player.payout || 0,
+        }));
 
-          setSkinsLeaderboard(leaderboard);
-          setTotalSkins(data.skins.payout?.totalSkins || 0);
-          setPotAmount(
-            data.skins.payout?.potAmount
-              ? data.skins.payout.potAmount / 100
-              : null,
-          );
-          setPayoutPerSkin(data.skins.payout?.payoutPerSkin || 0);
-        }
+        setSkinsLeaderboard(leaderboard);
+        setTotalSkins(data.totalSkins || 0);
+        setPotAmount(data.potAmount ? data.potAmount / 100 : null);
+        setPayoutPerSkin(data.payoutPerSkin || 0);
       }
     } catch (error) {
       console.error("Error fetching skins:", error);
