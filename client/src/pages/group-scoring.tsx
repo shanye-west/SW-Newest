@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, Plus, Minus, Wifi, WifiOff, RefreshCw, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useLongPress } from '@/hooks/useLongPress';
-import { queueScoreUpdate, getPendingSyncCount, isFlushInProgress, flushScoreQueue } from '../lib/dexie';
+import { queueScoreUpdate, getPendingSyncCount, flushScoreQueue } from '../lib/dexie';
 import { deriveSyncStatus, getSyncStatusText, getSyncStatusClasses, type SyncStatus } from '../lib/sync';
 import { strokesReceived, formatParRow, formatSIRow, isValidSIPermutation } from '../../../shared/handicapNet';
 
@@ -134,7 +133,7 @@ export default function GroupScoring() {
     
     setIsFlushing(true);
     try {
-      await flushScoreQueue(refetchScores);
+      await flushScoreQueue();
     } finally {
       setIsFlushing(false);
       // Update pending count after flush
@@ -505,23 +504,29 @@ export default function GroupScoring() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => updateScore(entry.id, hole, -1)}
+                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
+                              onClick={() => {
+                                lightTap();
+                                updateScore(entry.id, hole, -1);
+                              }}
                               disabled={score <= 1}
                               data-testid={`button-minus-${entry.id}-${hole}`}
-                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                              aria-label={`Decrease score for hole ${hole}`}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => updateScore(entry.id, hole, 1)}
+                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
+                              onClick={() => {
+                                lightTap();
+                                updateScore(entry.id, hole, 1);
+                              }}
                               data-testid={`button-plus-${entry.id}-${hole}`}
-                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex]?.par || 4}, SI ${courseHoles[holeIndex]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
+                              aria-label={`Increase score for hole ${hole}`}
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
@@ -575,16 +580,35 @@ export default function GroupScoring() {
                           </div>
                           
                           {/* +/- Buttons */}
-                          <ScoreButtons 
-                            entryId={entry.id}
-                            hole={hole}
-                            score={score}
-                            updateScore={updateScore}
-                            lightTap={lightTap}
-                            holeIndex={holeIndex + 9}
-                            courseHoles={courseHoles}
-                            strokesRcvd={strokesRcvd}
-                          />
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
+                              onClick={() => {
+                                lightTap();
+                                updateScore(entry.id, hole, -1);
+                              }}
+                              disabled={score <= 1}
+                              data-testid={`button-minus-${entry.id}-${hole}`}
+                              aria-label={`Decrease score for hole ${hole}`}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
+                              onClick={() => {
+                                lightTap();
+                                updateScore(entry.id, hole, 1);
+                              }}
+                              data-testid={`button-plus-${entry.id}-${hole}`}
+                              aria-label={`Increase score for hole ${hole}`}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
