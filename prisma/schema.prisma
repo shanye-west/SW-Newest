@@ -57,8 +57,10 @@ model Tournament {
   holes                 Int       @default(18)
   netAllowance          Int       @default(100) // adjustable per event
   passcode              String    // simple for now
-  potAmount             Int?      // optional
-  participantsForSkins  Int?      // optional
+  potAmount             Int?      // optional, skins pot in cents
+  participantsForSkins  Int?      // optional, for skins calculation
+  grossPrize            Int?      // optional, gross prize in cents
+  netPrize              Int?      // optional, net prize in cents
   skinsCarry            Boolean   @default(false) // MUST remain false (no carry)
   shareToken            String?   @unique // public share token
   isFinal               Boolean   @default(false) // tournament finalization
@@ -94,6 +96,7 @@ model Entry {
   courseHandicap  Int       // CH after rounding + cap
   playingCH       Int       // after netAllowance + rounding
   groupId         String?   // optional
+  hasPaid         Boolean   @default(false) // payment tracking
   createdAt       DateTime  @default(now())
 
   tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
