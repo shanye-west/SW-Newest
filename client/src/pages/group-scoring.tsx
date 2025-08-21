@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, Plus, Minus, Wifi, WifiOff, RefreshCw, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLongPress } from '@/hooks/useLongPress';
 import { queueScoreUpdate, getPendingSyncCount, isFlushInProgress, flushScoreQueue } from '../lib/dexie';
 import { deriveSyncStatus, getSyncStatusText, getSyncStatusClasses, type SyncStatus } from '../lib/sync';
 import { strokesReceived, formatParRow, formatSIRow, isValidSIPermutation } from '../../../shared/handicapNet';
@@ -251,6 +252,13 @@ export default function GroupScoring() {
     }
   }, [pendingSyncCount, isOnline, doFlushQueue]);
 
+  // Add haptic feedback function
+  const lightTap = useCallback(() => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(10); // Very light buzz
+    }
+  }, []);
+
   if (!match) return null;
 
   if (!scoringData) {
@@ -431,6 +439,21 @@ export default function GroupScoring() {
                 const frontNine = Array.from({ length: 9 }, (_, i) => playerScores[i + 1] || 0).reduce((sum, score) => sum + score, 0);
                 const backNine = Array.from({ length: 9 }, (_, i) => playerScores[i + 10] || 0).reduce((sum, score) => sum + score, 0);
                 const totalScore = frontNine + backNine;
+                
+                // Calculate par totals
+                const frontPar = courseHoles.length === 18 ? courseHoles.slice(0, 9).reduce((sum, hole) => sum + hole.par, 0) : 36;
+                const backPar = courseHoles.length === 18 ? courseHoles.slice(9, 18).reduce((sum, hole) => sum + hole.par, 0) : 36;
+                const totalPar = frontPar + backPar;
+                
+                // Calculate to-par scores
+                const frontToPar = frontNine ? frontNine - frontPar : 0;
+                const backToPar = backNine ? backNine - backPar : 0;
+                const totalToPar = totalScore ? totalScore - totalPar : 0;
+                
+                // Calculate net scores
+                const grossTotal = totalScore || 0;
+                const netTotal = grossTotal ? grossTotal - entry.playingCH : 0;
+                const netToPar = netTotal ? netTotal - totalPar : 0;
 
                 return (
                   <div key={entry.id} className="grid grid-cols-22 gap-0 border-b">
@@ -508,7 +531,12 @@ export default function GroupScoring() {
                     {/* Out Total */}
                     <div className="border-r p-2 flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/20">
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">OUT</div>
-                      <div className="text-lg font-bold">{frontNine || '--'}</div>
+                      <div className="text-lg font-bold tabular-nums">{frontNine || '--'}</div>
+                      {frontNine > 0 && (
+                        <div className={`text-xs tabular-nums ${frontToPar === 0 ? 'text-gray-500' : frontToPar > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {frontToPar === 0 ? 'E' : frontToPar > 0 ? `+${frontToPar}` : frontToPar}
+                        </div>
+                      )}
                     </div>
 
                     {/* Back 9 Score Cells */}
@@ -542,34 +570,21 @@ export default function GroupScoring() {
                           )}
                           
                           {/* Score Display */}
-                          <div className="text-lg font-medium mb-1">
+                          <div className="text-lg font-medium mb-1 tabular-nums">
                             {score || '--'}
                           </div>
                           
                           {/* +/- Buttons */}
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => updateScore(entry.id, hole, -1)}
-                              disabled={score <= 1}
-                              data-testid={`button-minus-${entry.id}-${hole}`}
-                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex + 9]?.par || 4}, SI ${courseHoles[holeIndex + 9]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
-                            >
-                              <Minus className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => updateScore(entry.id, hole, 1)}
-                              data-testid={`button-plus-${entry.id}-${hole}`}
-                              aria-label={`Hole ${hole}, Par ${courseHoles[holeIndex + 9]?.par || 4}, SI ${courseHoles[holeIndex + 9]?.strokeIndex || 1}, receiving ${strokesRcvd} stroke${strokesRcvd !== 1 ? 's' : ''}, current score ${score || 'none'}`}
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                          </div>
+                          <ScoreButtons 
+                            entryId={entry.id}
+                            hole={hole}
+                            score={score}
+                            updateScore={updateScore}
+                            lightTap={lightTap}
+                            holeIndex={holeIndex + 9}
+                            courseHoles={courseHoles}
+                            strokesRcvd={strokesRcvd}
+                          />
                         </div>
                       );
                     })}
@@ -577,13 +592,23 @@ export default function GroupScoring() {
                     {/* In Total */}
                     <div className="border-r p-2 flex flex-col items-center justify-center bg-green-50 dark:bg-green-900/20">
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">IN</div>
-                      <div className="text-lg font-bold">{backNine || '--'}</div>
+                      <div className="text-lg font-bold tabular-nums">{backNine || '--'}</div>
+                      {backNine > 0 && (
+                        <div className={`text-xs tabular-nums ${backToPar === 0 ? 'text-gray-500' : backToPar > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {backToPar === 0 ? 'E' : backToPar > 0 ? `+${backToPar}` : backToPar}
+                        </div>
+                      )}
                     </div>
 
                     {/* Total Score */}
                     <div className="p-2 flex flex-col items-center justify-center bg-yellow-50 dark:bg-yellow-900/20">
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">TOTAL</div>
-                      <div className="text-xl font-bold">{totalScore || '--'}</div>
+                      <div className="text-xl font-bold tabular-nums">{totalScore || '--'}</div>
+                      {totalScore > 0 && (
+                        <div className={`text-sm tabular-nums ${totalToPar === 0 ? 'text-gray-500' : totalToPar > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {totalToPar === 0 ? 'EVEN' : totalToPar > 0 ? `+${totalToPar}` : totalToPar}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -603,22 +628,54 @@ export default function GroupScoring() {
               <h3 className="font-medium mb-2">{entry.player.name}</h3>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Total Gross:</span>
-                  <span className="font-medium">
-                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) || '--'}
-                  </span>
+                  <span>Gross Total:</span>
+                  <div className="text-right">
+                    <span className="font-medium tabular-nums">
+                      {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) || '--'}
+                    </span>
+                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
+                      <div className={`text-xs tabular-nums ${
+                        (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) === 0 
+                          ? 'text-gray-500' 
+                          : (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) > 0 
+                            ? 'text-red-600' 
+                            : 'text-green-600'
+                      }`}>
+                        {(() => {
+                          const toPar = Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72);
+                          return toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar;
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span>Playing CH:</span>
-                  <span>{entry.playingCH}</span>
+                  <span className="tabular-nums">{entry.playingCH}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Est. Net:</span>
-                  <span className="font-medium">
-                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) 
-                      ? Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH
-                      : '--'}
-                  </span>
+                  <span>Net Total:</span>
+                  <div className="text-right">
+                    <span className="font-medium tabular-nums">
+                      {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) 
+                        ? Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH
+                        : '--'}
+                    </span>
+                    {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
+                      <div className={`text-xs tabular-nums ${
+                        ((Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) === 0 
+                          ? 'text-gray-500' 
+                          : ((Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) > 0 
+                            ? 'text-red-600' 
+                            : 'text-green-600'
+                      }`}>
+                        {(() => {
+                          const netToPar = (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72);
+                          return netToPar === 0 ? 'E' : netToPar > 0 ? `+${netToPar}` : netToPar;
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
