@@ -416,20 +416,28 @@ export default function GroupScoring() {
                 const backNine = Array.from({ length: 9 }, (_, i) => playerScores[i + 10] || 0).reduce((sum, score) => sum + score, 0);
                 const totalScore = frontNine + backNine;
                 
-                // Calculate par totals
-                const frontPar = courseHoles.length === 18 ? courseHoles.slice(0, 9).reduce((sum, hole) => sum + hole.par, 0) : 36;
-                const backPar = courseHoles.length === 18 ? courseHoles.slice(9, 18).reduce((sum, hole) => sum + hole.par, 0) : 36;
-                const totalPar = frontPar + backPar;
+                // Calculate par totals for played holes only
+                const frontNineHolesPlayed = Array.from({ length: 9 }, (_, i) => playerScores[i + 1] || 0).filter(score => score > 0).length;
+                const backNineHolesPlayed = Array.from({ length: 9 }, (_, i) => playerScores[i + 10] || 0).filter(score => score > 0).length;
                 
-                // Calculate to-par scores
-                const frontToPar = frontNine ? frontNine - frontPar : 0;
-                const backToPar = backNine ? backNine - backPar : 0;
-                const totalToPar = totalScore ? totalScore - totalPar : 0;
+                const frontParPlayed = courseHoles.length === 18 
+                  ? Array.from({ length: 9 }, (_, i) => playerScores[i + 1] > 0 ? (courseHoles[i]?.par || 4) : 0).reduce((sum, par) => sum + par, 0)
+                  : frontNineHolesPlayed * 4;
+                const backParPlayed = courseHoles.length === 18 
+                  ? Array.from({ length: 9 }, (_, i) => playerScores[i + 10] > 0 ? (courseHoles[i + 9]?.par || 4) : 0).reduce((sum, par) => sum + par, 0)
+                  : backNineHolesPlayed * 4;
+                const totalParPlayed = frontParPlayed + backParPlayed;
+                const totalPar = courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72;
+                
+                // Calculate to-par scores for played holes only
+                const frontToPar = frontNine && frontNineHolesPlayed > 0 ? frontNine - frontParPlayed : 0;
+                const backToPar = backNine && backNineHolesPlayed > 0 ? backNine - backParPlayed : 0;
+                const totalToPar = totalScore && (frontNineHolesPlayed + backNineHolesPlayed) > 0 ? totalScore - totalParPlayed : 0;
                 
                 // Calculate net scores
                 const grossTotal = totalScore || 0;
                 const netTotal = grossTotal ? grossTotal - entry.playingCH : 0;
-                const netToPar = netTotal ? netTotal - totalPar : 0;
+                const netToPar = netTotal && (frontNineHolesPlayed + backNineHolesPlayed) > 0 ? netTotal - totalParPlayed : 0;
 
                 return (
                   <div key={entry.id} className="grid grid-cols-22 gap-0 border-b">
@@ -664,14 +672,42 @@ export default function GroupScoring() {
                     </span>
                     {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
                       <div className={`text-xs tabular-nums ${
-                        (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) === 0 
+                        (() => {
+                          const playerScores = localScores[entry.id] || {};
+                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                          const totalParForPlayedHoles = courseHoles.length === 18 
+                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                const holeNum = parseInt(hole);
+                                return sum + (courseHoles[holeNum - 1]?.par || 4);
+                              }, 0)
+                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                          return totalScore - totalParForPlayedHoles;
+                        })() === 0 
                           ? 'text-gray-500' 
-                          : (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) > 0 
+                          : (() => {
+                              const playerScores = localScores[entry.id] || {};
+                              const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                              const totalParForPlayedHoles = courseHoles.length === 18 
+                                ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                    const holeNum = parseInt(hole);
+                                    return sum + (courseHoles[holeNum - 1]?.par || 4);
+                                  }, 0)
+                                : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                              return totalScore - totalParForPlayedHoles;
+                            })() > 0 
                             ? 'text-red-600' 
                             : 'text-green-600'
                       }`}>
                         {(() => {
-                          const toPar = Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72);
+                          const playerScores = localScores[entry.id] || {};
+                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                          const totalParForPlayedHoles = courseHoles.length === 18 
+                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                const holeNum = parseInt(hole);
+                                return sum + (courseHoles[holeNum - 1]?.par || 4);
+                              }, 0)
+                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                          const toPar = totalScore - totalParForPlayedHoles;
                           return toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar;
                         })()}
                       </div>
@@ -692,14 +728,45 @@ export default function GroupScoring() {
                     </span>
                     {Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) > 0 && (
                       <div className={`text-xs tabular-nums ${
-                        ((Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) === 0 
+                        (() => {
+                          const playerScores = localScores[entry.id] || {};
+                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                          const totalParForPlayedHoles = courseHoles.length === 18 
+                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                const holeNum = parseInt(hole);
+                                return sum + (courseHoles[holeNum - 1]?.par || 4);
+                              }, 0)
+                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                          const netScore = totalScore - entry.playingCH;
+                          return netScore - totalParForPlayedHoles;
+                        })() === 0 
                           ? 'text-gray-500' 
-                          : ((Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72)) > 0 
+                          : (() => {
+                              const playerScores = localScores[entry.id] || {};
+                              const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                              const totalParForPlayedHoles = courseHoles.length === 18 
+                                ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                    const holeNum = parseInt(hole);
+                                    return sum + (courseHoles[holeNum - 1]?.par || 4);
+                                  }, 0)
+                                : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                              const netScore = totalScore - entry.playingCH;
+                              return netScore - totalParForPlayedHoles;
+                            })() > 0 
                             ? 'text-red-600' 
                             : 'text-green-600'
                       }`}>
                         {(() => {
-                          const netToPar = (Object.values(localScores[entry.id] || {}).reduce((sum, score) => sum + score, 0) - entry.playingCH) - (courseHoles.length === 18 ? courseHoles.reduce((sum, hole) => sum + hole.par, 0) : 72);
+                          const playerScores = localScores[entry.id] || {};
+                          const totalScore = Object.values(playerScores).reduce((sum, score) => sum + score, 0);
+                          const totalParForPlayedHoles = courseHoles.length === 18 
+                            ? Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).reduce((sum, hole) => {
+                                const holeNum = parseInt(hole);
+                                return sum + (courseHoles[holeNum - 1]?.par || 4);
+                              }, 0)
+                            : Object.keys(playerScores).filter(hole => playerScores[parseInt(hole)] > 0).length * 4;
+                          const netScore = totalScore - entry.playingCH;
+                          const netToPar = netScore - totalParForPlayedHoles;
                           return netToPar === 0 ? 'E' : netToPar > 0 ? `+${netToPar}` : netToPar;
                         })()}
                       </div>
