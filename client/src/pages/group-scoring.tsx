@@ -488,12 +488,10 @@ export default function GroupScoring() {
                           className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
                         >
                           {/* Par and SI info */}
-                          {courseHoles.length === 18 && (
-                            <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
-                              <div>P{courseHoles[holeIndex]?.par || 4}</div>
-                              <div>SI{courseHoles[holeIndex]?.strokeIndex || 1}</div>
-                            </div>
-                          )}
+                          <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
+                            <div>P{courseHoles[holeIndex]?.par || 4}</div>
+                            <div>SI{courseHoles[holeIndex]?.strokeIndex || (holeIndex + 1)}</div>
+                          </div>
                           
                           {/* Handicap Dots */}
                           {showHandicapDots && strokesRcvd > 0 && (
@@ -576,12 +574,10 @@ export default function GroupScoring() {
                           className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
                         >
                           {/* Par and SI info */}
-                          {courseHoles.length === 18 && (
-                            <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
-                              <div>P{courseHoles[holeIndex + 9]?.par || 4}</div>
-                              <div>SI{courseHoles[holeIndex + 9]?.strokeIndex || 1}</div>
-                            </div>
-                          )}
+                          <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
+                            <div>P{courseHoles[holeIndex + 9]?.par || 4}</div>
+                            <div>SI{courseHoles[holeIndex + 9]?.strokeIndex || (holeIndex + 10)}</div>
+                          </div>
                           
                           {/* Handicap Dots */}
                           {showHandicapDots && strokesRcvd > 0 && (
