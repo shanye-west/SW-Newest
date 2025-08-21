@@ -372,7 +372,7 @@ export default function GroupScoring() {
               <div className="sticky top-0 bg-white dark:bg-gray-900 border-b">
                 {/* Hole Numbers Row */}
                 <div className="grid grid-cols-22 gap-0 text-center text-xs font-medium">
-                  <div className="p-2 border-r">Player</div>
+                  <div className="p-2 border-r">Hole</div>
                   {Array.from({ length: 9 }, (_, i) => (
                     <div key={i + 1} className="p-2 border-r">
                       {i + 1}
@@ -388,51 +388,25 @@ export default function GroupScoring() {
                   <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20">TOT</div>
                 </div>
                 
-                {/* Par Row */}
-                {courseHoles.length === 18 && (
-                  <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-50 dark:bg-gray-800">
-                    <div className="p-1 border-r text-gray-600 dark:text-gray-400">Par</div>
-                    {formatParRow(courseHoles).slice(0, 9).map((par, i) => (
-                      <div key={i} className="p-1 border-r text-gray-600 dark:text-gray-400">
-                        {par}
-                      </div>
-                    ))}
-                    <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20">
-                      {formatParRow(courseHoles).slice(0, 9).reduce((sum, par) => sum + par, 0)}
-                    </div>
-                    {formatParRow(courseHoles).slice(9, 18).map((par, i) => (
-                      <div key={i + 9} className="p-1 border-r text-gray-600 dark:text-gray-400">
-                        {par}
-                      </div>
-                    ))}
-                    <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20">
-                      {formatParRow(courseHoles).slice(9, 18).reduce((sum, par) => sum + par, 0)}
-                    </div>
-                    <div className="p-1 text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900/20">
-                      {formatParRow(courseHoles).reduce((sum, par) => sum + par, 0)}
-                    </div>
-                  </div>
-                )}
+
                 
-                {/* SI Row */}
-                {courseHoles.length === 18 && isValidSIPermutation(formatSIRow(courseHoles)) && (
-                  <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-100 dark:bg-gray-700">
-                    <div className="p-1 border-r text-gray-500 dark:text-gray-400">SI</div>
-                    {formatSIRow(courseHoles).slice(0, 9).map((si, i) => (
-                      <div key={i} className="p-1 border-r text-gray-500 dark:text-gray-400">
-                        {si}
-                      </div>
-                    ))}
-                    <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
-                    {formatSIRow(courseHoles).slice(9, 18).map((si, i) => (
-                      <div key={i + 9} className="p-1 border-r text-gray-500 dark:text-gray-400">
-                        {si}
-                      </div>
-                    ))}
-                    <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
-                    <div className="p-1 text-gray-500 dark:text-gray-400"></div>
-                  </div>
-                )}
+                {/* Handicap Row */}
+                <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-100 dark:bg-gray-700">
+                  <div className="p-1 border-r text-gray-500 dark:text-gray-400">Handicap</div>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <div key={i} className="p-1 border-r text-gray-500 dark:text-gray-400">
+                      {courseHoles[i]?.strokeIndex || (i + 1)}
+                    </div>
+                  ))}
+                  <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <div key={i + 9} className="p-1 border-r text-gray-500 dark:text-gray-400">
+                      {courseHoles[i + 9]?.strokeIndex || (i + 10)}
+                    </div>
+                  ))}
+                  <div className="p-1 border-r text-gray-500 dark:text-gray-400"></div>
+                  <div className="p-1 text-gray-500 dark:text-gray-400"></div>
+                </div>
               </div>
               
               {/* Player Rows */}
@@ -487,11 +461,7 @@ export default function GroupScoring() {
                           key={hole}
                           className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
                         >
-                          {/* Par and SI info */}
-                          <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
-                            <div>P{courseHoles[holeIndex]?.par || 4}</div>
-                            <div>SI{courseHoles[holeIndex]?.strokeIndex || (holeIndex + 1)}</div>
-                          </div>
+
                           
                           {/* Handicap Dots */}
                           {showHandicapDots && strokesRcvd > 0 && (
@@ -573,11 +543,7 @@ export default function GroupScoring() {
                           key={hole}
                           className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
                         >
-                          {/* Par and SI info */}
-                          <div className="absolute top-0 left-0 text-xs text-gray-500 leading-tight">
-                            <div>P{courseHoles[holeIndex + 9]?.par || 4}</div>
-                            <div>SI{courseHoles[holeIndex + 9]?.strokeIndex || (holeIndex + 10)}</div>
-                          </div>
+
                           
                           {/* Handicap Dots */}
                           {showHandicapDots && strokesRcvd > 0 && (
@@ -652,6 +618,30 @@ export default function GroupScoring() {
                   </div>
                 );
               })}
+              
+              {/* Par Row */}
+              <div className="grid grid-cols-22 gap-0 text-center text-xs bg-gray-50 dark:bg-gray-800 border-t-2">
+                <div className="p-1 border-r text-gray-600 dark:text-gray-400 font-medium">Par</div>
+                {Array.from({ length: 9 }, (_, i) => (
+                  <div key={i} className="p-1 border-r text-gray-600 dark:text-gray-400">
+                    {courseHoles[i]?.par || 4}
+                  </div>
+                ))}
+                <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20">
+                  {Array.from({ length: 9 }, (_, i) => courseHoles[i]?.par || 4).reduce((sum, par) => sum + par, 0)}
+                </div>
+                {Array.from({ length: 9 }, (_, i) => (
+                  <div key={i + 9} className="p-1 border-r text-gray-600 dark:text-gray-400">
+                    {courseHoles[i + 9]?.par || 4}
+                  </div>
+                ))}
+                <div className="p-1 border-r text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20">
+                  {Array.from({ length: 9 }, (_, i) => courseHoles[i + 9]?.par || 4).reduce((sum, par) => sum + par, 0)}
+                </div>
+                <div className="p-1 text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900/20">
+                  {Array.from({ length: 18 }, (_, i) => courseHoles[i]?.par || 4).reduce((sum, par) => sum + par, 0)}
+                </div>
+              </div>
               
               
             </div>
