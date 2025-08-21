@@ -97,13 +97,13 @@ export default function Leaderboards() {
           playerName: player.playerName,
           entryId: player.entryId,
           skins: player.skins,
-          payout: player.payout || 0,
+          payout: (player.payout || 0) / 100, // Convert cents to dollars
         }));
 
         setSkinsLeaderboard(leaderboard);
         setTotalSkins(data.totalSkins || 0);
         setPotAmount(data.potAmount ? data.potAmount / 100 : null);
-        setPayoutPerSkin(data.payoutPerSkin || 0);
+        setPayoutPerSkin((data.payoutPerSkin || 0) / 100); // Convert cents to dollars
       }
     } catch (error) {
       console.error("Error fetching skins:", error);
@@ -192,10 +192,10 @@ export default function Leaderboards() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-bold">
-                        {entry.grossTotal}
+                        {formatScore(entry.grossTotal, coursePar)}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {formatScore(entry.grossTotal, coursePar)}
+                        Total: {entry.grossTotal}
                       </div>
                     </div>
                   </div>
@@ -245,9 +245,11 @@ export default function Leaderboards() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xl font-bold">{entry.netTotal}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-xl font-bold">
                         {formatScore(entry.netTotal, coursePar)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Net: {entry.netTotal}
                       </div>
                     </div>
                   </div>

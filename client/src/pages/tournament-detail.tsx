@@ -1114,17 +1114,19 @@ export default function TournamentDetail() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="potAmount">Pot Amount ($)</Label>
+                    <Label htmlFor="skinsBuyIn">Skins Buy-in per Player ($)</Label>
                     <Input
-                      id="potAmount"
+                      id="skinsBuyIn"
                       type="number"
-                      step="1"
+                      step="0.01"
                       min="0"
-                      placeholder="0"
-                      defaultValue={tournament.potAmount ? (tournament.potAmount / 100).toString() : ''}
-                      data-testid="input-pot-amount"
+                      placeholder="0.00"
+                      defaultValue={tournament.potAmount && tournament.participantsForSkins 
+                        ? ((tournament.potAmount / 100) / tournament.participantsForSkins).toFixed(2) 
+                        : ''}
+                      data-testid="input-skins-buyin"
                     />
-                    <p className="text-xs text-gray-500">Enter the total pot amount in dollars</p>
+                    <p className="text-xs text-gray-500">Buy-in amount per participant</p>
                   </div>
                   
                   <div className="space-y-2">
@@ -1142,15 +1144,27 @@ export default function TournamentDetail() {
                   </div>
                 </div>
                 
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    <strong>Total Skins Pot:</strong> $
+                    {(() => {
+                      const buyIn = parseFloat((document.getElementById('skinsBuyIn') as HTMLInputElement)?.value || '0') || 0;
+                      const participants = parseInt((document.getElementById('participantsForSkins') as HTMLInputElement)?.value || '0') || 0;
+                      return (buyIn * participants).toFixed(2);
+                    })()}
+                  </p>
+                </div>
+                
                 <Button
                   onClick={() => {
-                    const potInput = document.getElementById('potAmount') as HTMLInputElement;
+                    const buyInInput = document.getElementById('skinsBuyIn') as HTMLInputElement;
                     const participantsInput = document.getElementById('participantsForSkins') as HTMLInputElement;
                     
-                    const potAmount = parseFloat(potInput.value) || 0;
+                    const buyIn = parseFloat(buyInInput.value) || 0;
                     const participants = parseInt(participantsInput.value) || 0;
+                    const totalPot = buyIn * participants;
                     
-                    handleSaveSkinsSettings(potAmount, participants);
+                    handleSaveSkinsSettings(totalPot, participants);
                   }}
                   disabled={isSavingSettings}
                   className="bg-green-600 hover:bg-green-700"
@@ -1164,48 +1178,77 @@ export default function TournamentDetail() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Prize Configuration</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Set prize amounts for gross and net low score winners.
+                  Set buy-in amounts per player for gross and net competition prize pools.
                 </p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="grossPrize">Gross Prize ($)</Label>
+                    <Label htmlFor="grossBuyIn">Gross Buy-in per Player ($)</Label>
                     <Input
-                      id="grossPrize"
+                      id="grossBuyIn"
                       type="number"
-                      step="1"
+                      step="0.01"
                       min="0"
-                      placeholder="0"
-                      defaultValue={tournament.grossPrize ? (tournament.grossPrize / 100).toString() : ''}
-                      data-testid="input-gross-prize"
+                      placeholder="0.00"
+                      defaultValue={tournament.grossPrize && entries.length > 0 
+                        ? ((tournament.grossPrize / 100) / entries.length).toFixed(2) 
+                        : ''}
+                      data-testid="input-gross-buyin"
                     />
-                    <p className="text-xs text-gray-500">Prize for lowest gross score</p>
+                    <p className="text-xs text-gray-500">Buy-in per player for gross prize</p>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="netPrize">Net Prize ($)</Label>
+                    <Label htmlFor="netBuyIn">Net Buy-in per Player ($)</Label>
                     <Input
-                      id="netPrize"
+                      id="netBuyIn"
                       type="number"
-                      step="1"
+                      step="0.01"
                       min="0"
-                      placeholder="0"
-                      defaultValue={tournament.netPrize ? (tournament.netPrize / 100).toString() : ''}
-                      data-testid="input-net-prize"
+                      placeholder="0.00"
+                      defaultValue={tournament.netPrize && entries.length > 0 
+                        ? ((tournament.netPrize / 100) / entries.length).toFixed(2) 
+                        : ''}
+                      data-testid="input-net-buyin"
                     />
-                    <p className="text-xs text-gray-500">Prize for lowest net score</p>
+                    <p className="text-xs text-gray-500">Buy-in per player for net prize</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Prize Pool Summary</Label>
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-sm space-y-1">
+                        <p><strong>Gross Prize Pool:</strong> $
+                          {(() => {
+                            const grossBuyIn = parseFloat((document.getElementById('grossBuyIn') as HTMLInputElement)?.value || '0') || 0;
+                            return (grossBuyIn * entries.length).toFixed(2);
+                          })()}
+                        </p>
+                        <p><strong>Net Prize Pool:</strong> $
+                          {(() => {
+                            const netBuyIn = parseFloat((document.getElementById('netBuyIn') as HTMLInputElement)?.value || '0') || 0;
+                            return (netBuyIn * entries.length).toFixed(2);
+                          })()}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Based on {entries.length} current entries
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
                 <Button
                   onClick={() => {
-                    const grossInput = document.getElementById('grossPrize') as HTMLInputElement;
-                    const netInput = document.getElementById('netPrize') as HTMLInputElement;
+                    const grossBuyInInput = document.getElementById('grossBuyIn') as HTMLInputElement;
+                    const netBuyInInput = document.getElementById('netBuyIn') as HTMLInputElement;
                     
-                    const grossPrize = parseFloat(grossInput.value) || 0;
-                    const netPrize = parseFloat(netInput.value) || 0;
+                    const grossBuyIn = parseFloat(grossBuyInInput.value) || 0;
+                    const netBuyIn = parseFloat(netBuyInInput.value) || 0;
+                    const grossPrizeTotal = grossBuyIn * entries.length;
+                    const netPrizeTotal = netBuyIn * entries.length;
                     
-                    handleSavePrizeSettings(grossPrize, netPrize);
+                    handleSavePrizeSettings(grossPrizeTotal, netPrizeTotal);
                   }}
                   disabled={isSavingSettings}
                   className="bg-blue-600 hover:bg-blue-700"

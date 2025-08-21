@@ -135,7 +135,7 @@ export function calculateLeaderboards(
     });
   }
 
-  // Sort and assign positions for net using TRUE Net tiebreaker
+  // Create separate arrays for net leaderboard with separate position tracking
   const netSorted = [...leaderboardEntries].sort((a, b) => {
     const netDiff = a.netTotal - b.netTotal;
     if (netDiff !== 0) return netDiff;
@@ -153,9 +153,12 @@ export function calculateLeaderboards(
     }
   });
 
+  // Create new objects for net leaderboard to avoid position conflicts
   currentPos = 1;
   tiedGroup = [];
-  netSorted.forEach((entry, index) => {
+  const netLeaderboard = netSorted.map((entry, index) => {
+    const netEntry = { ...entry }; // Create new object
+    
     if (index === 0 || entry.netTotal !== netSorted[index - 1].netTotal) {
       if (tiedGroup.length > 1) {
         tiedGroup.forEach(tiedEntry => {
@@ -163,11 +166,12 @@ export function calculateLeaderboards(
         });
       }
       currentPos = index + 1;
-      tiedGroup = [entry];
+      tiedGroup = [netEntry];
     } else {
-      tiedGroup.push(entry);
+      tiedGroup.push(netEntry);
     }
-    entry.position = currentPos;
+    netEntry.position = currentPos;
+    return netEntry;
   });
 
   if (tiedGroup.length > 1) {
@@ -178,7 +182,7 @@ export function calculateLeaderboards(
 
   const result = { 
     gross: grossSorted, 
-    net: netSorted,
+    net: netLeaderboard,
     ...(warnings.length > 0 && { warnings })
   };
 
