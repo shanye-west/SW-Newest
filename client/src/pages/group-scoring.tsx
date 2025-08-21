@@ -467,12 +467,10 @@ export default function GroupScoring() {
                       return (
                         <div 
                           key={hole}
-                          className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
+                          className="relative border-r p-1 min-h-[80px] flex flex-col items-center justify-center"
                         >
-
-                          
                           {/* Handicap Dots */}
-                          {showHandicapDots && strokesRcvd > 0 && (
+                          {strokesRcvd > 0 && (
                             <div 
                               className="absolute top-1 right-1 opacity-70"
                               aria-hidden="true"
@@ -481,41 +479,41 @@ export default function GroupScoring() {
                             </div>
                           )}
                           
+                          {/* + Button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 touch-manipulation active:scale-95 transition-all mb-1"
+                            onClick={() => {
+                              lightTap();
+                              updateScore(entry.id, hole, 1);
+                            }}
+                            data-testid={`button-plus-${entry.id}-${hole}`}
+                            aria-label={`Increase score for hole ${hole}`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                          
                           {/* Score Display */}
-                          <div className="text-lg font-medium mb-1 tabular-nums">
+                          <div className="text-lg font-medium my-1 tabular-nums">
                             {score || '--'}
                           </div>
                           
-                          {/* +/- Buttons */}
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
-                              onClick={() => {
-                                lightTap();
-                                updateScore(entry.id, hole, -1);
-                              }}
-                              disabled={score <= 1}
-                              data-testid={`button-minus-${entry.id}-${hole}`}
-                              aria-label={`Decrease score for hole ${hole}`}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
-                              onClick={() => {
-                                lightTap();
-                                updateScore(entry.id, hole, 1);
-                              }}
-                              data-testid={`button-plus-${entry.id}-${hole}`}
-                              aria-label={`Increase score for hole ${hole}`}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          {/* - Button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 touch-manipulation active:scale-95 transition-all mt-1"
+                            onClick={() => {
+                              lightTap();
+                              updateScore(entry.id, hole, -1);
+                            }}
+                            disabled={score <= 1}
+                            data-testid={`button-minus-${entry.id}-${hole}`}
+                            aria-label={`Decrease score for hole ${hole}`}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
                         </div>
                       );
                     })}
@@ -549,12 +547,10 @@ export default function GroupScoring() {
                       return (
                         <div 
                           key={hole}
-                          className="relative border-r p-1 min-h-[60px] flex flex-col items-center justify-center"
+                          className="relative border-r p-1 min-h-[80px] flex flex-col items-center justify-center"
                         >
-
-                          
                           {/* Handicap Dots */}
-                          {showHandicapDots && strokesRcvd > 0 && (
+                          {strokesRcvd > 0 && (
                             <div 
                               className="absolute top-1 right-1 opacity-70"
                               aria-hidden="true"
@@ -563,41 +559,41 @@ export default function GroupScoring() {
                             </div>
                           )}
                           
+                          {/* + Button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 touch-manipulation active:scale-95 transition-all mb-1"
+                            onClick={() => {
+                              lightTap();
+                              updateScore(entry.id, hole, 1);
+                            }}
+                            data-testid={`button-plus-${entry.id}-${hole}`}
+                            aria-label={`Increase score for hole ${hole}`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                          
                           {/* Score Display */}
-                          <div className="text-lg font-medium mb-1 tabular-nums">
+                          <div className="text-lg font-medium my-1 tabular-nums">
                             {score || '--'}
                           </div>
                           
-                          {/* +/- Buttons */}
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
-                              onClick={() => {
-                                lightTap();
-                                updateScore(entry.id, hole, -1);
-                              }}
-                              disabled={score <= 1}
-                              data-testid={`button-minus-${entry.id}-${hole}`}
-                              aria-label={`Decrease score for hole ${hole}`}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 touch-manipulation active:scale-95 transition-all"
-                              onClick={() => {
-                                lightTap();
-                                updateScore(entry.id, hole, 1);
-                              }}
-                              data-testid={`button-plus-${entry.id}-${hole}`}
-                              aria-label={`Increase score for hole ${hole}`}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          {/* - Button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0 touch-manipulation active:scale-95 transition-all mt-1"
+                            onClick={() => {
+                              lightTap();
+                              updateScore(entry.id, hole, -1);
+                            }}
+                            disabled={score <= 1}
+                            data-testid={`button-minus-${entry.id}-${hole}`}
+                            aria-label={`Decrease score for hole ${hole}`}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
                         </div>
                       );
                     })}
