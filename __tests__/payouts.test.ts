@@ -53,7 +53,7 @@ describe('Payouts', () => {
       expect(result.perPlayerPayouts['entry2']).toBe(0);
     });
 
-    it('should handle rounding for pot=$100, 6 skins', () => {
+    it('should distribute remainder correctly for pot=$100, 6 skins', () => {
       const result = calculateSkinsPayouts({
         potAmount: 10000, // $100 in cents
         totalSkins: 6,
@@ -64,10 +64,13 @@ describe('Payouts', () => {
         }
       });
 
-      expect(result.payoutPerSkin).toBe(16.67);
-      expect(result.perPlayerPayouts['entry1']).toBe(50.01);
-      expect(result.perPlayerPayouts['entry2']).toBe(33.34);
+      expect(result.payoutPerSkin).toBe(16.66);
+      expect(result.perPlayerPayouts['entry1']).toBe(50.00);
+      expect(result.perPlayerPayouts['entry2']).toBe(33.33);
       expect(result.perPlayerPayouts['entry3']).toBe(16.67);
+      const totalPayout = Object.values(result.perPlayerPayouts).reduce((sum, v) => sum + v, 0);
+      expect(totalPayout).toBeLessThanOrEqual(100);
+      expect(totalPayout).toBe(100);
     });
   });
 
