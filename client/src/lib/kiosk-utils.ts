@@ -56,8 +56,11 @@ export function diffRows(prev: PlayerResult[], next: PlayerResult[]): Map<string
  * @returns Next section index
  */
 export function rotate(currentIndex: number, enabledSections: SectionType[]): number {
-  if (enabledSections.length === 0) return 0;
-  return (currentIndex + 1) % enabledSections.length;
+  const length = enabledSections.length;
+  if (length === 0) return 0;
+  // Normalize the current index to ensure it's within bounds before rotating
+  const normalized = ((currentIndex % length) + length) % length;
+  return (normalized + 1) % length;
 }
 
 /**

@@ -75,6 +75,13 @@ describe('Kiosk Utility Functions', () => {
       expect(rotate(0, sections)).toBe(1);
       expect(rotate(1, sections)).toBe(0);
     });
+
+    it('should normalize negative indices', () => {
+      const sections: SectionType[] = ['gross', 'net'];
+      const nextIndex = rotate(-1, sections);
+      expect(nextIndex).toBeGreaterThanOrEqual(0);
+      expect(nextIndex).toBeLessThan(sections.length);
+    });
   });
 
   describe('diffRows', () => {
