@@ -58,10 +58,13 @@ export class GolfDatabase extends Dexie {
 
   // Mark scores as synced
   async markScoresSynced(scoreIds: number[]) {
-    return await this.offlineScores.bulkUpdate(
-      scoreIds,
-      { synced: true }
-    );
+    if (scoreIds.length === 0) {
+      return 0;
+    }
+    return await this.offlineScores
+      .where('id')
+      .anyOf(scoreIds)
+      .modify({ synced: true });
   }
 
   // Get offline queue count
