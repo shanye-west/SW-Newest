@@ -16,6 +16,7 @@ import PublicKiosk from "./pages/public-kiosk";
 import AdminConflicts from "./pages/admin-conflicts";
 import CourseHoles from "./pages/course-holes";
 import AppHeader from "./components/AppHeader";
+import BottomNav from "./components/BottomNav";
 import { TournamentProvider } from "./contexts/TournamentContext";
 
 function Router() {
@@ -44,14 +45,16 @@ function App() {
         <TournamentProvider>
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <AppHeader />
-            <main 
+            <main
               className="w-full"
               style={{
-                paddingTop: 'calc(64px + env(safe-area-inset-top, 0px))'
+                paddingTop: 'calc(64px + env(safe-area-inset-top, 0px))',
+                paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))'
               }}
             >
               <Router />
             </main>
+            <BottomNav />
           </div>
           <Toaster />
         </TournamentProvider>
