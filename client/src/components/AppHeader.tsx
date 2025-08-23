@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { Home } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -25,15 +25,15 @@ export default function AppHeader() {
   const title = routeConfig?.title || 'SW Monthly Golf';
   const isRoot = location === '/';
 
-  const handleBackClick = () => {
-    if (location.startsWith('/tournaments/') && location.includes('/')) {
-      // If in tournament detail or sub-routes, go back to tournament detail
+  const handleHomeClick = () => {
+    if (location.startsWith('/tournaments/')) {
       const tournamentId = location.split('/')[2];
-      setLocation(`/tournaments/${tournamentId}`);
-    } else {
-      // General back navigation
-      setLocation('/');
+      if (tournamentId) {
+        setLocation(`/tournaments/${tournamentId}`);
+        return;
+      }
     }
+    setLocation('/');
   };
 
   return (
@@ -45,7 +45,7 @@ export default function AppHeader() {
       }}
     >
       <div className="flex items-center justify-between px-4 h-16">
-        {/* Left: Back button and/or tournament context */}
+        {/* Left: Home button and/or tournament context */}
         <div className="flex items-center space-x-2 min-w-0 flex-1">
           {!isRoot && (
             <Tooltip>
@@ -53,15 +53,15 @@ export default function AppHeader() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={handleBackClick}
+                  onClick={handleHomeClick}
                   className="p-2"
-                  aria-label="Go back"
-                  data-testid="button-header-back"
+                  aria-label="Home"
+                  data-testid="button-header-home"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <Home className="w-5 h-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Go back</TooltipContent>
+              <TooltipContent>Home</TooltipContent>
             </Tooltip>
           )}
 
