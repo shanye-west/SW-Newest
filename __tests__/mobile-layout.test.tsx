@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import MobileLayout from '@/components/mobile-layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -33,6 +33,9 @@ const renderWithQueryClient = (component: React.ReactElement) => {
 };
 
 describe('MobileLayout', () => {
+  afterEach(() => {
+    cleanup();
+  });
   it('renders with correct initial state', () => {
     renderWithQueryClient(
       <MobileLayout passcode="123456" isOrganizer={false} />
