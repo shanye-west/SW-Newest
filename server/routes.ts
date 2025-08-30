@@ -12,6 +12,7 @@ import {
   auditEvents 
 } from "../shared/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
+import { nanoid } from 'nanoid';
 import {
   calculateLeaderboards,
   calculateGrossSkins,
@@ -28,11 +29,11 @@ async function checkTournamentNotFinalized(req: any, res: any, next: any) {
 
     // For hole-scores endpoints, get tournament from entryId
     if (!tournamentId && req.body.entryId) {
-      const entry = await prisma.entry.findUnique({
-        where: { id: req.body.entryId },
-        select: { tournamentId: true },
-      });
-      tournamentId = entry?.tournamentId;
+      const entry = await db.select({ tournamentId: entries.tournamentId })
+        .from(entries)
+        .where(eq(entries.id, req.body.entryId))
+        .limit(1);
+      tournamentId = entry[0]?.tournamentId;
     }
 
     // For batch hole-scores, check the first entry
@@ -41,22 +42,23 @@ async function checkTournamentNotFinalized(req: any, res: any, next: any) {
       Array.isArray(req.body.scores) &&
       req.body.scores[0]?.entryId
     ) {
-      const entry = await prisma.entry.findUnique({
-        where: { id: req.body.scores[0].entryId },
-        select: { tournamentId: true },
-      });
-      tournamentId = entry?.tournamentId;
+      const entry = await db.select({ tournamentId: entries.tournamentId })
+        .from(entries)
+        .where(eq(entries.id, req.body.scores[0].entryId))
+        .limit(1);
+      tournamentId = entry[0]?.tournamentId;
     }
 
     if (!tournamentId) {
       return next(); // Let other validation handle missing tournamentId
     }
 
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-    });
+    const tournament = await db.select({ isFinal: tournaments.isFinal })
+      .from(tournaments)
+      .where(eq(tournaments.id, tournamentId))
+      .limit(1);
 
-    if (tournament?.isFinal) {
+    if (tournament[0]?.isFinal) {
       return res.status(403).json({ error: "tournament_finalized" });
     }
 
@@ -88,10 +90,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Players API routes
   app.get("/api/players", async (req, res) => {
     try {
-      const players = await prisma.player.findMany({
-        orderBy: { createdAt: "desc" },
-      });
-      res.json(players);
+      const allPlayers = await db.select().from(players).orderBy(desc(players.createdAt));
+      res.json(allPlayers);
     } catch (error) {
       console.error("Error fetching players:", error);
       res.status(500).json({ error: "Failed to fetch players" });
@@ -113,15 +113,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "Valid Handicap Index (0.0 - 54.0) is required" });
       }
 
-      const player = await prisma.player.create({
-        data: {
-          name: name.trim(),
-          email: email?.trim() || null,
-          handicapIndex: parseFloat(handicapIndex),
-        },
-      });
+      const newPlayer = await db.insert(players).values({
+        id: nanoid(),
+        name: name.trim(),
+        email: email?.trim() || null,
+        handicapIndex: parseFloat(handicapIndex),
+      }).returning();
 
-      res.status(201).json(player);
+      res.status(201).json(newPlayer[0]);
     } catch (error) {
       console.error("Error creating player:", error);
       res.status(500).json({ error: "Failed to create player" });
@@ -144,16 +143,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "Valid Handicap Index (0.0 - 54.0) is required" });
       }
 
-      const player = await prisma.player.update({
-        where: { id },
-        data: {
+      const updatedPlayer = await db.update(players)
+        .set({
           name: name.trim(),
           email: email?.trim() || null,
           handicapIndex: parseFloat(handicapIndex),
-        },
-      });
+        })
+        .where(eq(players.id, id))
+        .returning();
 
-      res.json(player);
+      if (updatedPlayer.length === 0) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      res.json(updatedPlayer[0]);
     } catch (error) {
       console.error("Error updating player:", error);
       res.status(500).json({ error: "Failed to update player" });

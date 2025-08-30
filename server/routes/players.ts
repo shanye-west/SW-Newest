@@ -1,17 +1,16 @@
 import express from 'express';
 import { db } from '../../lib/db';
-import { players } from '../../shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { players, entries } from '../../shared/schema';
+import { eq, desc, count } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 const router = express.Router();
 
 // GET /api/players
 router.get('/', async (req, res) => {
   try {
-    const players = await prisma.player.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(players);
+    const allPlayers = await db.select().from(players).orderBy(desc(players.createdAt));
+    res.json(allPlayers);
   } catch (error) {
     console.error('Error fetching players:', error);
     res.status(500).json({ error: 'Failed to fetch players' });
@@ -27,15 +26,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const player = await prisma.player.create({
-      data: {
-        name: name.trim(),
-        email: email?.trim() || null,
-        handicapIndex: handicapIndex ? parseFloat(handicapIndex) : null
-      }
-    });
+    const newPlayer = await db.insert(players).values({
+      id: nanoid(),
+      name: name.trim(),
+      email: email?.trim() || null,
+      handicapIndex: handicapIndex ? parseFloat(handicapIndex) : null
+    }).returning();
     
-    res.status(201).json(player);
+    res.status(201).json(newPlayer[0]);
   } catch (error) {
     console.error('Error creating player:', error);
     res.status(500).json({ error: 'Failed to create player' });
@@ -52,16 +50,20 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const player = await prisma.player.update({
-      where: { id },
-      data: {
+    const updatedPlayer = await db.update(players)
+      .set({
         name: name.trim(),
         email: email?.trim() || null,
         handicapIndex: handicapIndex ? parseFloat(handicapIndex) : null
-      }
-    });
+      })
+      .where(eq(players.id, id))
+      .returning();
     
-    res.json(player);
+    if (updatedPlayer.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    res.json(updatedPlayer[0]);
   } catch (error) {
     console.error('Error updating player:', error);
     res.status(500).json({ error: 'Failed to update player' });
@@ -74,9 +76,11 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Check if player has entries in any tournaments
-    const entryCount = await prisma.entry.count({
-      where: { playerId: id },
-    });
+    const entryCountResult = await db.select({ count: count() })
+      .from(entries)
+      .where(eq(entries.playerId, id));
+    
+    const entryCount = entryCountResult[0]?.count || 0;
 
     if (entryCount > 0) {
       return res.status(400).json({ 
@@ -84,9 +88,13 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    await prisma.player.delete({
-      where: { id }
-    });
+    const deletedPlayer = await db.delete(players)
+      .where(eq(players.id, id))
+      .returning();
+      
+    if (deletedPlayer.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
     
     res.status(204).send();
   } catch (error) {

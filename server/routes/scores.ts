@@ -2,7 +2,8 @@
 import { Router } from "express";
 import { db } from "../../lib/db";
 import { entries, holeScores, tournaments, groups, players } from "../../shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
+import { nanoid } from 'nanoid';
 
 const router = Router();
 
@@ -28,27 +29,20 @@ router.post("/scores", async (req, res) => {
     }
 
     // Check if entry exists
-    const entry = await prisma.tournamentEntry.findUnique({
-      where: { id: entryId }
-    });
+    const entry = await db.select().from(entries).where(eq(entries.id, entryId)).limit(1);
 
-    if (!entry) {
+    if (entry.length === 0) {
       return res.status(404).json({ error: "Tournament entry not found" });
     }
 
     const clientTime = clientUpdatedAt ? new Date(clientUpdatedAt) : new Date();
 
     // Check for existing score for Last-Write-Wins conflict resolution
-    const existingScore = await prisma.holeScore.findUnique({
-      where: {
-        entryId_hole: {
-          entryId,
-          hole: holeNum
-        }
-      }
-    });
+    const existingScore = await db.select().from(holeScores)
+      .where(and(eq(holeScores.entryId, entryId), eq(holeScores.hole, holeNum)))
+      .limit(1);
 
-    if (existingScore && existingScore.updatedAt > clientTime) {
+    if (existingScore.length > 0 && existingScore[0].updatedAt > clientTime) {
       // Server has a more recent update, ignore this one
       return res.json({ 
         status: 'ignored', 
@@ -57,30 +51,32 @@ router.post("/scores", async (req, res) => {
       });
     }
 
-    // Upsert the score
-    const savedScore = await prisma.holeScore.upsert({
-      where: {
-        entryId_hole: {
-          entryId,
-          hole: holeNum
-        }
-      },
-      update: {
-        strokes: strokesNum,
-        clientUpdatedAt: clientTime,
-        updatedAt: new Date()
-      },
-      create: {
+    // Upsert the score (insert if not exists, update if exists)
+    let savedScore;
+    if (existingScore.length > 0) {
+      // Update existing score
+      savedScore = await db.update(holeScores)
+        .set({
+          strokes: strokesNum,
+          clientUpdatedAt: clientTime,
+          updatedAt: new Date()
+        })
+        .where(and(eq(holeScores.entryId, entryId), eq(holeScores.hole, holeNum)))
+        .returning();
+    } else {
+      // Create new score
+      savedScore = await db.insert(holeScores).values({
+        id: nanoid(),
         entryId,
         hole: holeNum,
         strokes: strokesNum,
         clientUpdatedAt: clientTime
-      }
-    });
+      }).returning();
+    }
 
     res.json({ 
       status: 'accepted', 
-      score: savedScore 
+      score: savedScore[0] 
     });
 
   } catch (error) {
@@ -94,26 +90,37 @@ router.get("/groups/:groupId/scores", async (req, res) => {
   try {
     const { groupId } = req.params;
 
-    // Get all entries in this group
-    const entries = await prisma.tournamentEntry.findMany({
-      where: { groupId },
-      include: {
-        player: true,
-        scores: true
-      }
-    });
+    // Get all entries in this group with their players and scores
+    const groupEntries = await db.select({
+      id: entries.id,
+      playerId: entries.playerId,
+      playerName: players.name,
+      playingCH: entries.playingCH
+    }).from(entries)
+      .innerJoin(players, eq(entries.playerId, players.id))
+      .where(eq(entries.groupId, groupId));
+
+    // Get all scores for these entries
+    const entryIds = groupEntries.map(e => e.id);
+    const allScores = entryIds.length > 0 ? 
+      await db.select().from(holeScores).where(inArray(holeScores.entryId, entryIds)) :
+      [];
 
     // Transform scores into the expected format
-    const scores: Record<string, Record<number, number>> = {};
+    const scoresData: Record<string, Record<number, number>> = {};
     
-    for (const entry of entries) {
-      scores[entry.id] = {};
-      for (const score of entry.scores) {
-        scores[entry.id][score.hole] = score.strokes;
+    for (const entry of groupEntries) {
+      scoresData[entry.id] = {};
+    }
+    
+    for (const score of allScores) {
+      if (!scoresData[score.entryId]) {
+        scoresData[score.entryId] = {};
       }
+      scoresData[score.entryId][score.hole] = score.strokes;
     }
 
-    res.json({ scores, entries });
+    res.json({ scores: scoresData, entries: groupEntries });
 
   } catch (error) {
     console.error('Error fetching group scores:', error);

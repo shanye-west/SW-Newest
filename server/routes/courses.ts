@@ -1,18 +1,17 @@
 
 import express from 'express';
 import { db } from '../../lib/db';
-import { courses, courseHoles } from '../../shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { courses, courseHoles, tournaments } from '../../shared/schema';
+import { eq, desc, count } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 const router = express.Router();
 
 // GET /api/courses
 router.get('/', async (req, res) => {
   try {
-    const courses = await prisma.course.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(courses);
+    const allCourses = await db.select().from(courses).orderBy(desc(courses.createdAt));
+    res.json(allCourses);
   } catch (error) {
     console.error('Error fetching courses:', error);
     res.status(500).json({ error: 'Failed to fetch courses' });
@@ -28,16 +27,15 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const course = await prisma.course.create({
-      data: {
-        name: name.trim(),
-        par: parseInt(par),
-        rating: parseFloat(rating),
-        slope: parseInt(slope),
-      }
-    });
+    const newCourse = await db.insert(courses).values({
+      id: nanoid(),
+      name: name.trim(),
+      par: parseInt(par),
+      rating: parseFloat(rating),
+      slope: parseInt(slope),
+    }).returning();
     
-    res.status(201).json(course);
+    res.status(201).json(newCourse[0]);
   } catch (error) {
     console.error('Error creating course:', error);
     res.status(500).json({ error: 'Failed to create course' });
@@ -54,17 +52,21 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const course = await prisma.course.update({
-      where: { id },
-      data: {
+    const updatedCourse = await db.update(courses)
+      .set({
         name: name.trim(),
         par: parseInt(par),
         rating: parseFloat(rating),
         slope: parseInt(slope),
-      }
-    });
+      })
+      .where(eq(courses.id, id))
+      .returning();
     
-    res.json(course);
+    if (updatedCourse.length === 0) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+    
+    res.json(updatedCourse[0]);
   } catch (error) {
     console.error('Error updating course:', error);
     res.status(500).json({ error: 'Failed to update course' });
@@ -77,9 +79,11 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Check if course is used by any tournaments
-    const tournamentCount = await prisma.tournament.count({
-      where: { courseId: id },
-    });
+    const tournamentCountResult = await db.select({ count: count() })
+      .from(tournaments)
+      .where(eq(tournaments.courseId, id));
+    
+    const tournamentCount = tournamentCountResult[0]?.count || 0;
 
     if (tournamentCount > 0) {
       return res.status(400).json({ 
@@ -88,14 +92,17 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Delete course holes first (they reference the course)
-    await prisma.courseHole.deleteMany({
-      where: { courseId: id },
-    });
+    await db.delete(courseHoles)
+      .where(eq(courseHoles.courseId, id));
 
     // Then delete the course
-    await prisma.course.delete({
-      where: { id },
-    });
+    const deletedCourse = await db.delete(courses)
+      .where(eq(courses.id, id))
+      .returning();
+      
+    if (deletedCourse.length === 0) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
     
     res.status(204).send();
   } catch (error) {
