@@ -11,7 +11,7 @@ import {
   courseHoles, 
   auditEvents 
 } from "../shared/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, count } from "drizzle-orm";
 import { nanoid } from 'nanoid';
 import {
   calculateLeaderboards,
@@ -168,9 +168,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
 
       // Check if player has entries in any tournaments
-      const entryCount = await prisma.entry.count({
-        where: { playerId: id },
-      });
+      const entryCountResult = await db.select({ count: count() })
+        .from(entries)
+        .where(eq(entries.playerId, id));
+      
+      const entryCount = entryCountResult[0]?.count || 0;
 
       if (entryCount > 0) {
         return res.status(400).json({ 
@@ -178,9 +180,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      await prisma.player.delete({
-        where: { id },
-      });
+      const deletedPlayer = await db.delete(players)
+        .where(eq(players.id, id))
+        .returning();
+        
+      if (deletedPlayer.length === 0) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
 
       res.status(204).send();
     } catch (error) {
@@ -192,10 +198,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Courses API routes
   app.get("/api/courses", async (req, res) => {
     try {
-      const courses = await prisma.course.findMany({
-        orderBy: { createdAt: "desc" },
-      });
-      res.json(courses);
+      const allCourses = await db.select().from(courses).orderBy(desc(courses.createdAt));
+      res.json(allCourses);
     } catch (error) {
       console.error("Error fetching courses:", error);
       res.status(500).json({ error: "Failed to fetch courses" });
@@ -210,16 +214,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "All fields are required" });
       }
 
-      const course = await prisma.course.create({
-        data: {
-          name: name.trim(),
-          par: parseInt(par),
-          rating: parseFloat(rating),
-          slope: parseInt(slope),
-        },
-      });
+      const newCourse = await db.insert(courses).values({
+        id: nanoid(),
+        name: name.trim(),
+        par: parseInt(par),
+        rating: parseFloat(rating),
+        slope: parseInt(slope),
+      }).returning();
 
-      res.status(201).json(course);
+      res.status(201).json(newCourse[0]);
     } catch (error) {
       console.error("Error creating course:", error);
       res.status(500).json({ error: "Failed to create course" });
@@ -235,17 +238,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "All fields are required" });
       }
 
-      const course = await prisma.course.update({
-        where: { id },
-        data: {
+      const updatedCourse = await db.update(courses)
+        .set({
           name: name.trim(),
           par: parseInt(par),
           rating: parseFloat(rating),
           slope: parseInt(slope),
-        },
-      });
+        })
+        .where(eq(courses.id, id))
+        .returning();
+      
+      if (updatedCourse.length === 0) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
 
-      res.json(course);
+      res.json(updatedCourse[0]);
     } catch (error) {
       console.error("Error updating course:", error);
       res.status(500).json({ error: "Failed to update course" });
@@ -257,9 +264,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
 
       // Check if course is used by any tournaments
-      const tournamentCount = await prisma.tournament.count({
-        where: { courseId: id },
-      });
+      const tournamentCountResult = await db.select({ count: count() })
+        .from(tournaments)
+        .where(eq(tournaments.courseId, id));
+      
+      const tournamentCount = tournamentCountResult[0]?.count || 0;
 
       if (tournamentCount > 0) {
         return res.status(400).json({ 
@@ -268,14 +277,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Delete course holes first (they reference the course)
-      await prisma.courseHole.deleteMany({
-        where: { courseId: id },
-      });
+      await db.delete(courseHoles)
+        .where(eq(courseHoles.courseId, id));
 
       // Then delete the course
-      await prisma.course.delete({
-        where: { id },
-      });
+      const deletedCourse = await db.delete(courses)
+        .where(eq(courses.id, id))
+        .returning();
+        
+      if (deletedCourse.length === 0) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
 
       res.status(204).send();
     } catch (error) {
@@ -302,20 +314,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify course exists
-      const course = await prisma.course.findUnique({
-        where: { id },
-        select: { id: true },
-      });
+      const course = await db.select({ id: courses.id })
+        .from(courses)
+        .where(eq(courses.id, id))
+        .limit(1);
 
-      if (!course) {
+      if (course.length === 0) {
         return res.status(404).json({ error: "Course not found" });
       }
 
-      const holes = await prisma.courseHole.findMany({
-        where: { courseId: id },
-        orderBy: { hole: "asc" },
-        select: { hole: true, par: true, strokeIndex: true },
-      });
+      const holes = await db.select({
+          hole: courseHoles.hole,
+          par: courseHoles.par,
+          strokeIndex: courseHoles.strokeIndex
+        })
+        .from(courseHoles)
+        .where(eq(courseHoles.courseId, id))
+        .orderBy(asc(courseHoles.hole));
 
       const response = { holes };
       
@@ -361,33 +376,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Par values must be between 3 and 6" });
       }
 
-      // Update holes using transaction
-      await prisma.$transaction(async (tx) => {
-        // Delete existing holes
-        await tx.courseHole.deleteMany({
-          where: { courseId: id },
-        });
+      // Delete existing holes first
+      await db.delete(courseHoles)
+        .where(eq(courseHoles.courseId, id));
 
-        // Create new holes
-        await tx.courseHole.createMany({
-          data: holes.map(hole => ({
-            courseId: id,
-            hole: hole.hole,
-            par: hole.par,
-            strokeIndex: hole.strokeIndex,
-          })),
-        });
-      });
+      // Create new holes
+      const newHoles = holes.map(hole => ({
+        id: nanoid(),
+        courseId: id,
+        hole: hole.hole,
+        par: hole.par,
+        strokeIndex: hole.strokeIndex,
+      }));
+
+      await db.insert(courseHoles).values(newHoles);
 
       // Clear cache for this course
       courseHolesCache.delete(id);
 
       // Return updated holes
-      const updatedHoles = await prisma.courseHole.findMany({
-        where: { courseId: id },
-        orderBy: { hole: "asc" },
-        select: { id: true, hole: true, par: true, strokeIndex: true },
-      });
+      const updatedHoles = await db.select({
+          id: courseHoles.id,
+          hole: courseHoles.hole,
+          par: courseHoles.par,
+          strokeIndex: courseHoles.strokeIndex
+        })
+        .from(courseHoles)
+        .where(eq(courseHoles.courseId, id))
+        .orderBy(asc(courseHoles.hole));
 
       res.json({ holes: updatedHoles });
     } catch (error) {
@@ -399,11 +415,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tournaments API routes
   app.get("/api/tournaments", async (req, res) => {
     try {
-      const tournaments = await prisma.tournament.findMany({
-        include: { course: { select: { name: true } } },
-        orderBy: { date: "desc" },
-      });
-      res.json(tournaments);
+      const allTournaments = await db.select({
+          id: tournaments.id,
+          name: tournaments.name,
+          date: tournaments.date,
+          courseId: tournaments.courseId,
+          holes: tournaments.holes,
+          netAllowance: tournaments.netAllowance,
+          passcode: tournaments.passcode,
+          potAmount: tournaments.potAmount,
+          participantsForSkins: tournaments.participantsForSkins,
+          skinsCarry: tournaments.skinsCarry,
+          grossPrize: tournaments.grossPrize,
+          netPrize: tournaments.netPrize,
+          isFinal: tournaments.isFinal,
+          finalizedAt: tournaments.finalizedAt,
+          createdAt: tournaments.createdAt,
+          updatedAt: tournaments.updatedAt,
+          courseName: courses.name
+        })
+        .from(tournaments)
+        .innerJoin(courses, eq(tournaments.courseId, courses.id))
+        .orderBy(desc(tournaments.date));
+      res.json(allTournaments);
     } catch (error) {
       console.error("Error fetching tournaments:", error);
       res.status(500).json({ error: "Failed to fetch tournaments" });
@@ -423,20 +457,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ error: "Name, date, and course are required" });
         }
 
-        const tournament = await prisma.tournament.create({
-          data: {
-            name: name.trim(),
-            date: date,
-            courseId,
-            netAllowance: netAllowance || 100,
-            passcode:
-              passcode ||
-              `${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-          },
-          include: { course: { select: { name: true } } },
-        });
+        const newTournament = await db.insert(tournaments).values({
+          id: nanoid(),
+          name: name.trim(),
+          date: date,
+          courseId,
+          netAllowance: netAllowance || 100,
+          passcode:
+            passcode ||
+            `${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        }).returning();
 
-        res.status(201).json(tournament);
+        // Get tournament with course name
+        const tournamentWithCourse = await db.select({
+            id: tournaments.id,
+            name: tournaments.name,
+            date: tournaments.date,
+            courseId: tournaments.courseId,
+            holes: tournaments.holes,
+            netAllowance: tournaments.netAllowance,
+            passcode: tournaments.passcode,
+            potAmount: tournaments.potAmount,
+            participantsForSkins: tournaments.participantsForSkins,
+            skinsCarry: tournaments.skinsCarry,
+            grossPrize: tournaments.grossPrize,
+            netPrize: tournaments.netPrize,
+            isFinal: tournaments.isFinal,
+            finalizedAt: tournaments.finalizedAt,
+            createdAt: tournaments.createdAt,
+            updatedAt: tournaments.updatedAt,
+            course: { name: courses.name }
+          })
+          .from(tournaments)
+          .innerJoin(courses, eq(tournaments.courseId, courses.id))
+          .where(eq(tournaments.id, newTournament[0].id))
+          .limit(1);
+
+        res.status(201).json(tournamentWithCourse[0]);
       } catch (error) {
         console.error("Error creating tournament:", error);
         res.status(500).json({ error: "Failed to create tournament" });
@@ -458,18 +515,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ error: "Name, date, and course are required" });
         }
 
-        const tournament = await prisma.tournament.update({
-          where: { id },
-          data: {
+        const updatedTournament = await db.update(tournaments)
+          .set({
             name: name.trim(),
             date: date,
             courseId,
             netAllowance: netAllowance || 100,
-          },
-          include: { course: { select: { name: true } } },
-        });
+            updatedAt: new Date(),
+          })
+          .where(eq(tournaments.id, id))
+          .returning();
 
-        res.json(tournament);
+        if (updatedTournament.length === 0) {
+          return res.status(404).json({ error: 'Tournament not found' });
+        }
+
+        // Get tournament with course name
+        const tournamentWithCourse = await db.select({
+            id: tournaments.id,
+            name: tournaments.name,
+            date: tournaments.date,
+            courseId: tournaments.courseId,
+            holes: tournaments.holes,
+            netAllowance: tournaments.netAllowance,
+            passcode: tournaments.passcode,
+            potAmount: tournaments.potAmount,
+            participantsForSkins: tournaments.participantsForSkins,
+            skinsCarry: tournaments.skinsCarry,
+            grossPrize: tournaments.grossPrize,
+            netPrize: tournaments.netPrize,
+            isFinal: tournaments.isFinal,
+            finalizedAt: tournaments.finalizedAt,
+            createdAt: tournaments.createdAt,
+            updatedAt: tournaments.updatedAt,
+            course: { name: courses.name }
+          })
+          .from(tournaments)
+          .innerJoin(courses, eq(tournaments.courseId, courses.id))
+          .where(eq(tournaments.id, id))
+          .limit(1);
+
+        res.json(tournamentWithCourse[0]);
       } catch (error) {
         console.error("Error updating tournament:", error);
         res.status(500).json({ error: "Failed to update tournament" });
@@ -482,25 +568,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { potAmount, participantsForSkins, grossPrize, netPrize } = req.body;
 
-      const tournament = await prisma.tournament.update({
-        where: { id },
-        data: {
-          potAmount: potAmount !== undefined ? potAmount : undefined,
-          participantsForSkins:
-            participantsForSkins !== undefined
-              ? participantsForSkins
-              : undefined,
-          grossPrize: grossPrize !== undefined ? grossPrize : undefined,
-          netPrize: netPrize !== undefined ? netPrize : undefined,
-        },
-        include: {
-          course: {
-            select: { name: true, par: true, slope: true, rating: true },
-          },
-        },
-      });
+      const updateData: any = { updatedAt: new Date() };
+      if (potAmount !== undefined) updateData.potAmount = potAmount;
+      if (participantsForSkins !== undefined) updateData.participantsForSkins = participantsForSkins;
+      if (grossPrize !== undefined) updateData.grossPrize = grossPrize;
+      if (netPrize !== undefined) updateData.netPrize = netPrize;
 
-      res.json(tournament);
+      const updatedTournament = await db.update(tournaments)
+        .set(updateData)
+        .where(eq(tournaments.id, id))
+        .returning();
+
+      if (updatedTournament.length === 0) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Get tournament with course details
+      const tournamentWithCourse = await db.select({
+          id: tournaments.id,
+          name: tournaments.name,
+          date: tournaments.date,
+          courseId: tournaments.courseId,
+          holes: tournaments.holes,
+          netAllowance: tournaments.netAllowance,
+          passcode: tournaments.passcode,
+          potAmount: tournaments.potAmount,
+          participantsForSkins: tournaments.participantsForSkins,
+          skinsCarry: tournaments.skinsCarry,
+          grossPrize: tournaments.grossPrize,
+          netPrize: tournaments.netPrize,
+          isFinal: tournaments.isFinal,
+          finalizedAt: tournaments.finalizedAt,
+          createdAt: tournaments.createdAt,
+          updatedAt: tournaments.updatedAt,
+          course: {
+            name: courses.name,
+            par: courses.par,
+            slope: courses.slope,
+            rating: courses.rating
+          }
+        })
+        .from(tournaments)
+        .innerJoin(courses, eq(tournaments.courseId, courses.id))
+        .where(eq(tournaments.id, id))
+        .limit(1);
+
+      res.json(tournamentWithCourse[0]);
     } catch (error) {
       console.error("Error updating tournament settings:", error);
       res.status(500).json({ error: "Failed to update tournament settings" });
@@ -554,20 +667,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tournaments/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const tournament = await prisma.tournament.findUnique({
-        where: { id },
-        include: {
+      const tournament = await db.select({
+          id: tournaments.id,
+          name: tournaments.name,
+          date: tournaments.date,
+          courseId: tournaments.courseId,
+          holes: tournaments.holes,
+          netAllowance: tournaments.netAllowance,
+          passcode: tournaments.passcode,
+          potAmount: tournaments.potAmount,
+          participantsForSkins: tournaments.participantsForSkins,
+          skinsCarry: tournaments.skinsCarry,
+          grossPrize: tournaments.grossPrize,
+          netPrize: tournaments.netPrize,
+          isFinal: tournaments.isFinal,
+          finalizedAt: tournaments.finalizedAt,
+          createdAt: tournaments.createdAt,
+          updatedAt: tournaments.updatedAt,
           course: {
-            select: { name: true, par: true, slope: true, rating: true },
-          },
-        },
-      });
+            name: courses.name,
+            par: courses.par,
+            slope: courses.slope,
+            rating: courses.rating
+          }
+        })
+        .from(tournaments)
+        .innerJoin(courses, eq(tournaments.courseId, courses.id))
+        .where(eq(tournaments.id, id))
+        .limit(1);
 
-      if (!tournament) {
+      if (tournament.length === 0) {
         return res.status(404).json({ error: "Tournament not found" });
       }
 
-      res.json(tournament);
+      res.json(tournament[0]);
     } catch (error) {
       console.error("Error fetching tournament:", error);
       res.status(500).json({ error: "Failed to fetch tournament" });
