@@ -1,4 +1,6 @@
-import { prisma } from "../../lib/db";
+import { db } from "../../lib/db";
+import { tournaments } from "../../shared/schema";
+import { eq } from "drizzle-orm";
 
 type EntryCtx = {
   entryId: string;

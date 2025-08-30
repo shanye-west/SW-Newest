@@ -1,6 +1,17 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { prisma } from "../lib/db";
+import { db } from "../lib/db";
+import { 
+  players, 
+  courses, 
+  tournaments, 
+  groups, 
+  entries, 
+  holeScores, 
+  courseHoles, 
+  auditEvents 
+} from "../shared/schema";
+import { eq, and, desc, asc } from "drizzle-orm";
 import {
   calculateLeaderboards,
   calculateGrossSkins,

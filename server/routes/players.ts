@@ -1,5 +1,7 @@
 import express from 'express';
-import { prisma } from '../../lib/db';
+import { db } from '../../lib/db';
+import { players } from '../../shared/schema';
+import { eq, desc } from 'drizzle-orm';
 
 const router = express.Router();
 

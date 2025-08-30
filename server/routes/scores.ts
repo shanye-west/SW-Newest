@@ -1,6 +1,8 @@
 
 import { Router } from "express";
-import { prisma } from "../../lib/db";
+import { db } from "../../lib/db";
+import { entries, holeScores, tournaments, groups, players } from "../../shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 const router = Router();
 

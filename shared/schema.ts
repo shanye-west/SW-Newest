@@ -1,30 +1,30 @@
 // Drizzle schema for SW Monthly Golf PWA
 
-import { text, integer, real, sqliteTable, unique } from "drizzle-orm/sqlite-core";
+import { text, integer, real, pgTable, unique, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Player table
-export const players = sqliteTable("players", {
+export const players = pgTable("players", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email"),
   handicapIndex: real("handicap_index"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Course table
-export const courses = sqliteTable("courses", {
+export const courses = pgTable("courses", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   par: integer("par").notNull(),
   slope: integer("slope").notNull(),
   rating: real("rating").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // CourseHole table
-export const courseHoles = sqliteTable("course_holes", {
+export const courseHoles = pgTable("course_holes", {
   id: text("id").primaryKey(),
   courseId: text("course_id").notNull(),
   hole: integer("hole").notNull(), // 1..18
@@ -36,7 +36,7 @@ export const courseHoles = sqliteTable("course_holes", {
 }));
 
 // Tournament table
-export const tournaments = sqliteTable("tournaments", {
+export const tournaments = pgTable("tournaments", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   date: text("date").notNull(),
@@ -46,53 +46,53 @@ export const tournaments = sqliteTable("tournaments", {
   passcode: text("passcode").notNull(),
   potAmount: integer("pot_amount"),
   participantsForSkins: integer("participants_for_skins"),
-  skinsCarry: integer("skins_carry", { mode: "boolean" }).notNull().default(false),
+  skinsCarry: boolean("skins_carry").notNull().default(false),
   grossPrize: integer("gross_prize"),
   netPrize: integer("net_prize"),
-  isFinal: integer("is_final", { mode: "boolean" }).notNull().default(false),
-  finalizedAt: integer("finalized_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  isFinal: boolean("is_final").notNull().default(false),
+  finalizedAt: timestamp("finalized_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Audit Events table
-export const auditEvents = sqliteTable("audit_events", {
+export const auditEvents = pgTable("audit_events", {
   id: text("id").primaryKey(),
   tournamentId: text("tournament_id").notNull(),
   type: text("type").notNull(), // "finalize" | "unlock"
   message: text("message"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Group table
-export const groups = sqliteTable("groups", {
+export const groups = pgTable("groups", {
   id: text("id").primaryKey(),
   tournamentId: text("tournament_id").notNull(),
   name: text("name").notNull(),
-  teeTime: integer("tee_time", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  teeTime: timestamp("tee_time"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Entry table
-export const entries = sqliteTable("entries", {
+export const entries = pgTable("entries", {
   id: text("id").primaryKey(),
   tournamentId: text("tournament_id").notNull(),
   playerId: text("player_id").notNull(),
   courseHandicap: integer("course_handicap").notNull(),
   playingCH: integer("playing_ch").notNull(),
   groupId: text("group_id"),
-  hasPaid: integer("has_paid", { mode: "boolean" }).notNull().default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  hasPaid: boolean("has_paid").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // HoleScore table
-export const holeScores = sqliteTable("hole_scores", {
+export const holeScores = pgTable("hole_scores", {
   id: text("id").primaryKey(),
   entryId: text("entry_id").notNull(),
   hole: integer("hole").notNull(), // 1-18
   strokes: integer("strokes").notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Insert schemas
