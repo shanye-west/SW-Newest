@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: sw-monthly-golf
+    env: node
+    buildCommand: npm run build
+    startCommand: npm start
