@@ -1,7 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import cors from "cors";
 import { createServer } from "http";
-import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -11,11 +9,13 @@ app.use(express.urlencoded({ extended: false }));
 
 import resultsRouter from "./routes/results";
 import scoresRouter from "./routes/scores";
-app.use("/api", resultsRouter);
-app.use("/api", scoresRouter);
-
 import playersRouter from './routes/players';
 import coursesRouter from './routes/courses';
+
+app.use("/api", resultsRouter);
+app.use("/api", scoresRouter);
+app.use('/api/players', playersRouter);
+app.use('/api/courses', coursesRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -47,13 +47,8 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  // Register API routes
-  await registerRoutes(app);
 
-  // Register modular routes
-  app.use('/api/players', playersRouter);
-  app.use('/api/courses', coursesRouter);
+(async () => {
 
   // In production, serve static files from the client build
   if (app.get("env") === "development") {
