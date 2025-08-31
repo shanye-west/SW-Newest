@@ -3,7 +3,7 @@
 ## Tech & Platform
 - Vite + Express + TypeScript (full-stack)
 - Tailwind + shadcn/ui (mobile-first)
-- Prisma + SQLite (server DB)
+- **Drizzle ORM + Neon PostgreSQL** (cloud database - MIGRATION COMPLETE Aug 2025)
 - Wouter (client-side routing)
 - React Query (API state)
 - **vite-plugin-pwa** for PWA (manifest + service worker)

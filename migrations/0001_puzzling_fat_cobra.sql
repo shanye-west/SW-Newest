@@ -1,0 +1,1 @@
+ALTER TABLE "hole_scores" ADD COLUMN "client_updated_at" timestamp;
