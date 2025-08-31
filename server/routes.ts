@@ -840,27 +840,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tournaments/:id/groups", async (req, res) => {
     try {
       const { id } = req.params;
-      const groups = await prisma.group.findMany({
-        where: { tournamentId: id },
-        include: {
-          entries: {
-            include: {
-              player: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  handicapIndex: true,
-                },
-              },
-            },
-            orderBy: { player: { name: "asc" } },
-          },
-        },
-        orderBy: { name: "asc" },
-      });
+      // Fetch groups for the tournament
+      const groupRows = await db
+        .select()
+        .from(groups)
+        .where(eq(groups.tournamentId, id))
+        .orderBy(asc(groups.name));
 
-      res.json(groups);
+      // Fetch entries with player info and group them
+      const entryRows = await db
+        .select({
+          id: entries.id,
+          tournamentId: entries.tournamentId,
+          playerId: entries.playerId,
+          courseHandicap: entries.courseHandicap,
+          playingCH: entries.playingCH,
+          groupId: entries.groupId,
+          hasPaid: entries.hasPaid,
+          createdAt: entries.createdAt,
+          player: {
+            id: players.id,
+            name: players.name,
+            email: players.email,
+            handicapIndex: players.handicapIndex,
+          },
+        })
+        .from(entries)
+        .innerJoin(players, eq(entries.playerId, players.id))
+        .where(eq(entries.tournamentId, id))
+        .orderBy(asc(players.name));
+
+      const groupMap = new Map(
+        groupRows.map((g) => [g.id, { ...g, entries: [] as any[] }])
+      );
+
+      for (const e of entryRows) {
+        if (e.groupId) {
+          const g = groupMap.get(e.groupId);
+          if (g) g.entries.push(e);
+        }
+      }
+
+      res.json(Array.from(groupMap.values()));
     } catch (error) {
       console.error("Error fetching groups:", error);
       res.status(500).json({ error: "Failed to fetch groups" });
@@ -877,15 +898,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ error: "Tournament ID and name are required" });
       }
 
-      const group = await prisma.group.create({
-        data: {
+      const group = await db
+        .insert(groups)
+        .values({
+          id: nanoid(),
           tournamentId,
           name: name.trim(),
-          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null,
-        },
-      });
+          teeTime: teeTime
+            ? new Date(`1970-01-01T${teeTime}:00.000Z`)
+            : null,
+        })
+        .returning();
 
-      res.status(201).json(group);
+      res.status(201).json(group[0]);
     } catch (error) {
       console.error("Error creating group:", error);
       res.status(500).json({ error: "Failed to create group" });
@@ -901,15 +926,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Name is required" });
       }
 
-      const group = await prisma.group.update({
-        where: { id },
-        data: {
+      const group = await db
+        .update(groups)
+        .set({
           name: name.trim(),
-          teeTime: teeTime ? new Date(`1970-01-01T${teeTime}:00.000Z`) : null,
-        },
-      });
+          teeTime: teeTime
+            ? new Date(`1970-01-01T${teeTime}:00.000Z`)
+            : null,
+        })
+        .where(eq(groups.id, id))
+        .returning();
 
-      res.json(group);
+      if (group.length === 0) {
+        return res.status(404).json({ error: "Group not found" });
+      }
+
+      res.json(group[0]);
     } catch (error) {
       console.error("Error updating group:", error);
       res.status(500).json({ error: "Failed to update group" });
@@ -924,14 +956,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { id } = req.params;
 
         // Unassign all entries from this group first
-        await prisma.entry.updateMany({
-          where: { groupId: id },
-          data: { groupId: null },
-        });
+        await db
+          .update(entries)
+          .set({ groupId: null })
+          .where(eq(entries.groupId, id));
 
-        await prisma.group.delete({
-          where: { id },
-        });
+        await db.delete(groups).where(eq(groups.id, id));
 
         res.status(204).send();
       } catch (error) {
