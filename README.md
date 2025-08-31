@@ -97,12 +97,15 @@ npx vitest run __tests__/kiosk-utils.test.ts  # Kiosk rotation utilities (10 tes
 ```
 
 ### Database
-The application uses SQLite with Prisma ORM. Database includes:
+The application uses Neon PostgreSQL with Drizzle ORM. Configure a `DATABASE_URL` and run `npm run db:push` to apply migrations. The database includes:
 - Players (with mandatory HI)
 - Courses (par, slope, rating)
-- Tournaments (with net allowance, passcode)  
+- Tournaments (with net allowance, passcode)
 - Entries (calculated CH, playing CH)
 - Groups (with optional tee times)
+
+### Deployment on Render
+Deployment is managed through `render.yaml`. Set a `DATABASE_URL` environment variable, specify Node.js 20, and the start command runs database migrations before launching the server.
 
 ## Tournament Workflow
 
@@ -148,8 +151,8 @@ The application uses SQLite with Prisma ORM. Database includes:
 ## Architecture
 
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS + shadcn/ui
-- **Backend**: Express.js + TypeScript  
-- **Database**: SQLite + Prisma ORM
+- **Backend**: Express.js + TypeScript
+- **Database**: Neon PostgreSQL + Drizzle ORM
 - **Testing**: Vitest for unit tests
 - **Routing**: Wouter for client-side routing
 - **State**: React Query for server state management
