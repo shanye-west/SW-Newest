@@ -2,7 +2,9 @@ import { db } from '../lib/db';
 
 async function verifyMigration() {
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    if (process.env.ALLOW_INSECURE_TLS === '1') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
     
     console.log('🔍 Verifying Drizzle migration to Neon PostgreSQL...\n');
     
@@ -33,7 +35,7 @@ async function verifyMigration() {
     
     console.log('\n🎉 Migration Status: COMPLETE');
     console.log('📊 All Prisma code removed, all tables exist in Neon PostgreSQL');
-    console.log('🔗 Database connection: Working with SSL bypass');
+    console.log('🔗 Database connection: Working');
     console.log('⚡ Drizzle ORM: Fully operational');
     
   } catch (error) {

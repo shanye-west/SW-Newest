@@ -4,7 +4,9 @@ import { nanoid } from 'nanoid';
 
 async function testAPIs() {
   try {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    if (process.env.ALLOW_INSECURE_TLS === '1') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
     
     console.log('🧪 Testing API endpoints with fresh data...\n');
     
