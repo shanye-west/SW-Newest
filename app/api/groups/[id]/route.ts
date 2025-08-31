@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
+import { groups, tournaments, courses } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PUT(
   request: NextRequest,
@@ -8,23 +10,27 @@ export async function PUT(
   try {
     const data = await request.json();
     
-    const group = await prisma.group.update({
-      where: { id: params.id },
-      data: {
-        name: data.name,
-        tournamentId: data.tournamentId,
-        teeTime: data.teeTime ? new Date(data.teeTime) : null,
-      },
-      include: {
-        tournament: {
-          include: {
-            course: true
-          }
-        }
-      }
-    });
-    
-    return NextResponse.json(group);
+      const [group] = await db
+        .update(groups)
+        .set({
+          name: data.name,
+          tournamentId: data.tournamentId,
+          teeTime: data.teeTime ? new Date(data.teeTime) : null,
+        })
+        .where(eq(groups.id, params.id))
+        .returning();
+
+      const tournament = await db
+        .select({ tournament: tournaments, course: courses })
+        .from(tournaments)
+        .innerJoin(courses, eq(tournaments.courseId, courses.id))
+        .where(eq(tournaments.id, group.tournamentId))
+        .limit(1);
+
+      return NextResponse.json({
+        ...group,
+        tournament: { ...tournament[0].tournament, course: tournament[0].course }
+      });
   } catch (error) {
     console.error('Failed to update group:', error);
     return NextResponse.json(
@@ -39,9 +45,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.group.delete({
-      where: { id: params.id }
-    });
+      await db.delete(groups).where(eq(groups.id, params.id));
     
     return NextResponse.json({ success: true });
   } catch (error) {
