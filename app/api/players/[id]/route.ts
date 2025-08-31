@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/db';
+import { db } from '@/lib/db';
+import { players } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PUT(
   request: NextRequest,
@@ -8,16 +10,17 @@ export async function PUT(
   try {
     const data = await request.json();
     
-    const player = await prisma.player.update({
-      where: { id: params.id },
-      data: {
-        name: data.name,
-        email: data.email || null,
-        handicapIndex: data.handicapIndex || null,
-      }
-    });
-    
-    return NextResponse.json(player);
+      const [player] = await db
+        .update(players)
+        .set({
+          name: data.name,
+          email: data.email || null,
+          handicapIndex: data.handicapIndex || null,
+        })
+        .where(eq(players.id, params.id))
+        .returning();
+
+      return NextResponse.json(player);
   } catch (error) {
     console.error('Failed to update player:', error);
     return NextResponse.json(
@@ -32,9 +35,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.player.delete({
-      where: { id: params.id }
-    });
+      await db.delete(players).where(eq(players.id, params.id));
     
     return NextResponse.json({ success: true });
   } catch (error) {

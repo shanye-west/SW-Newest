@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { db } from '@/lib/db';
+import { courses } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PUT(
   request: NextRequest,
@@ -8,17 +10,18 @@ export async function PUT(
   try {
     const data = await request.json();
     
-    const course = await prisma.course.update({
-      where: { id: params.id },
-      data: {
-        name: data.name,
-        par: data.par,
-        slope: data.slope,
-        rating: data.rating,
-      }
-    });
-    
-    return NextResponse.json(course);
+      const [course] = await db
+        .update(courses)
+        .set({
+          name: data.name,
+          par: data.par,
+          slope: data.slope,
+          rating: data.rating,
+        })
+        .where(eq(courses.id, params.id))
+        .returning();
+
+      return NextResponse.json(course);
   } catch (error) {
     console.error('Failed to update course:', error);
     return NextResponse.json(
@@ -33,9 +36,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.course.delete({
-      where: { id: params.id }
-    });
+      await db.delete(courses).where(eq(courses.id, params.id));
     
     return NextResponse.json({ success: true });
   } catch (error) {
