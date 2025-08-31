@@ -1,6 +1,12 @@
 import { db } from "../../lib/db";
-import { tournaments } from "../../shared/schema";
-import { eq } from "drizzle-orm";
+import {
+  tournaments,
+  courses,
+  entries,
+  players,
+  holeScores,
+} from "../../shared/schema";
+import { eq, inArray } from "drizzle-orm";
 
 type EntryCtx = {
   entryId: string;
@@ -55,26 +61,55 @@ function rankWithTies<T extends { score: number; tiebreakKey: string }>(
 }
 
 export async function computeResults(tournamentId: string) {
-  const t = await prisma.tournament.findUnique({
-    where: { id: tournamentId },
-    include: {
-      course: true,
-      entries: { include: { player: true } },
-    },
-  });
-  if (!t || !t.course) throw new Error("Tournament or course not found");
+  // Fetch tournament with course information
+  const tournamentRes = await db
+    .select({
+      id: tournaments.id,
+      holes: tournaments.holes,
+      potAmount: tournaments.potAmount,
+      participantsForSkins: tournaments.participantsForSkins,
+      coursePar: courses.par,
+    })
+    .from(tournaments)
+    .innerJoin(courses, eq(tournaments.courseId, courses.id))
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
 
-  const entryIds = t.entries.map((e) => e.id);
-  const scores = await prisma.holeScore.findMany({
-    where: { entryId: { in: entryIds } },
-  });
+  const t = tournamentRes[0];
+  if (!t) throw new Error("Tournament or course not found");
+
+  // Fetch entries with player data
+  const entriesRes = await db
+    .select({
+      id: entries.id,
+      playerName: players.name,
+      playingCH: entries.playingCH,
+    })
+    .from(entries)
+    .leftJoin(players, eq(entries.playerId, players.id))
+    .where(eq(entries.tournamentId, tournamentId));
+
+  const entryIds = entriesRes.map((e) => e.id);
+
+  // Fetch all hole scores for these entries
+  const scores =
+    entryIds.length > 0
+      ? await db
+          .select({
+            entryId: holeScores.entryId,
+            hole: holeScores.hole,
+            strokes: holeScores.strokes,
+          })
+          .from(holeScores)
+          .where(inArray(holeScores.entryId, entryIds))
+      : [];
 
   // Build per-entry context
   const byEntry: Record<string, EntryCtx> = {};
-  for (const e of t.entries) {
+  for (const e of entriesRes) {
     byEntry[e.id] = {
       entryId: e.id,
-      playerName: e.player?.name ?? "Unknown",
+      playerName: e.playerName ?? "Unknown",
       playingCH: e.playingCH ?? 0,
       holes: {},
       gross: 0,
@@ -95,7 +130,7 @@ export async function computeResults(tournamentId: string) {
     entryId: ctx.entryId,
     playerName: ctx.playerName,
     gross: ctx.gross,
-    toPar: t.course.par ? ctx.gross - t.course.par : null,
+    toPar: t.coursePar ? ctx.gross - t.coursePar : null,
     score: ctx.gross,
     holes: ctx.holes,
   }));
@@ -119,7 +154,7 @@ export async function computeResults(tournamentId: string) {
       gross: ctx.gross,
       playingCH: ctx.playingCH,
       net,
-      toPar: t.course.par ? net - t.course.par : null,
+      toPar: t.coursePar ? net - t.coursePar : null,
       score: net,
       holes: ctx.holes,
     };

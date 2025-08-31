@@ -91,6 +91,7 @@ export const holeScores = pgTable("hole_scores", {
   entryId: text("entry_id").notNull(),
   hole: integer("hole").notNull(), // 1-18
   strokes: integer("strokes").notNull(),
+  clientUpdatedAt: timestamp("client_updated_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -138,6 +139,7 @@ export const insertHoleScoreSchema = createInsertSchema(holeScores, {
   entryId: z.string().min(1, "Entry ID is required"),
   hole: z.number().int().min(1).max(18),
   strokes: z.number().int().min(1).max(15),
+  clientUpdatedAt: z.date().optional(),
 });
 
 export const insertAuditEventSchema = createInsertSchema(auditEvents, {
