@@ -12,16 +12,16 @@ interface Course {
   id: string;
   name: string;
   par: number;
-  slope: number;
   rating: number;
+  slope: number;
+  tees: { id: string; name: string; rating: number; slope: number; yards?: number }[];
   createdAt: Date;
 }
 
 interface CourseFormData {
   name: string;
   par: string;
-  slope: string;
-  rating: string;
+  tees: { name: string; rating: string; slope: string; yards: string }[];
 }
 
 export default function CoursesPage() {
@@ -31,8 +31,9 @@ export default function CoursesPage() {
   const [formData, setFormData] = useState<CourseFormData>({
     name: '',
     par: '',
-    slope: '',
-    rating: ''
+    tees: [
+      { name: '', rating: '', slope: '', yards: '' }
+    ]
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -56,12 +57,15 @@ export default function CoursesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     const courseData = {
       name: formData.name.trim(),
       par: parseInt(formData.par),
-      slope: parseInt(formData.slope),
-      rating: parseFloat(formData.rating)
+      tees: formData.tees.map(t => ({
+        name: t.name.trim(),
+        rating: parseFloat(t.rating),
+        slope: parseInt(t.slope),
+        yards: t.yards ? parseInt(t.yards) : undefined,
+      }))
     };
 
     try {
@@ -100,8 +104,12 @@ export default function CoursesPage() {
     setFormData({
       name: course.name,
       par: course.par.toString(),
-      slope: course.slope.toString(),
-      rating: course.rating.toString()
+      tees: course.tees.map(t => ({
+        name: t.name,
+        rating: t.rating.toString(),
+        slope: t.slope.toString(),
+        yards: t.yards?.toString() ?? ''
+      }))
     });
     setIsFormOpen(true);
   };
@@ -133,7 +141,11 @@ export default function CoursesPage() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', par: '', slope: '', rating: '' });
+    setFormData({
+      name: '',
+      par: '',
+      tees: [{ name: '', rating: '', slope: '', yards: '' }]
+    });
     setEditingCourse(null);
     setIsFormOpen(false);
   };
@@ -171,47 +183,90 @@ export default function CoursesPage() {
                   data-testid="input-course-name"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="par">Par *</Label>
-                  <Input
-                    id="par"
-                    type="number"
-                    min="60"
-                    max="80"
-                    value={formData.par}
-                    onChange={(e) => setFormData({ ...formData, par: e.target.value })}
-                    required
-                    data-testid="input-course-par"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="slope">Slope Rating *</Label>
-                  <Input
-                    id="slope"
-                    type="number"
-                    min="55"
-                    max="155"
-                    value={formData.slope}
-                    onChange={(e) => setFormData({ ...formData, slope: e.target.value })}
-                    required
-                    data-testid="input-course-slope"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="rating">Course Rating *</Label>
-                  <Input
-                    id="rating"
-                    type="number"
-                    step="0.1"
-                    min="60"
-                    max="80"
-                    value={formData.rating}
-                    onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                    required
-                    data-testid="input-course-rating"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="par">Par *</Label>
+                <Input
+                  id="par"
+                  type="number"
+                  min="60"
+                  max="80"
+                  value={formData.par}
+                  onChange={(e) => setFormData({ ...formData, par: e.target.value })}
+                  required
+                  data-testid="input-course-par"
+                />
+              </div>
+              <div className="space-y-4">
+                {formData.tees.map((tee, index) => (
+                  <div className="grid grid-cols-4 gap-4" key={index}>
+                    <div>
+                      <Label>Tee Name *</Label>
+                      <Input
+                        value={tee.name}
+                        onChange={(e) => {
+                          const tees = [...formData.tees];
+                          tees[index].name = e.target.value;
+                          setFormData({ ...formData, tees });
+                        }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Rating *</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="60"
+                        max="80"
+                        value={tee.rating}
+                        onChange={(e) => {
+                          const tees = [...formData.tees];
+                          tees[index].rating = e.target.value;
+                          setFormData({ ...formData, tees });
+                        }}
+                        required
+                        data-testid={`input-tee-rating-${index}`}
+                      />
+                    </div>
+                    <div>
+                      <Label>Slope *</Label>
+                      <Input
+                        type="number"
+                        min="55"
+                        max="155"
+                        value={tee.slope}
+                        onChange={(e) => {
+                          const tees = [...formData.tees];
+                          tees[index].slope = e.target.value;
+                          setFormData({ ...formData, tees });
+                        }}
+                        required
+                        data-testid={`input-tee-slope-${index}`}
+                      />
+                    </div>
+                    <div>
+                      <Label>Yards</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={tee.yards}
+                        onChange={(e) => {
+                          const tees = [...formData.tees];
+                          tees[index].yards = e.target.value;
+                          setFormData({ ...formData, tees });
+                        }}
+                        data-testid={`input-tee-yards-${index}`}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFormData({ ...formData, tees: [...formData.tees, { name: '', rating: '', slope: '', yards: '' }] })}
+                >
+                  Add Tee
+                </Button>
               </div>
               <div className="flex space-x-2">
                 <Button 
@@ -263,18 +318,26 @@ export default function CoursesPage() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-sm">
+              <div className="grid grid-cols-5 gap-2 text-sm">
                 <div>
                   <span className="font-medium">Par:</span>
                   <p data-testid={`course-par-${course.id}`}>{course.par}</p>
                 </div>
                 <div>
-                  <span className="font-medium">Slope:</span>
-                  <p data-testid={`course-slope-${course.id}`}>{course.slope}</p>
+                  <span className="font-medium">Tee:</span>
+                  <p>{course.tees[0]?.name || 'Default'}</p>
                 </div>
                 <div>
                   <span className="font-medium">Rating:</span>
-                  <p data-testid={`course-rating-${course.id}`}>{course.rating}</p>
+                  <p data-testid={`course-rating-${course.id}`}>{course.tees[0]?.rating ?? course.rating}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Slope:</span>
+                  <p data-testid={`course-slope-${course.id}`}>{course.tees[0]?.slope ?? course.slope}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Yards:</span>
+                  <p data-testid={`course-yards-${course.id}`}>{course.tees[0]?.yards ?? '-'}</p>
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-2">
