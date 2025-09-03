@@ -28,9 +28,6 @@ export const courseTees = pgTable("course_tees", {
   id: text("id").primaryKey(),
   courseId: text("course_id").notNull(),
   name: text("name").notNull(),
-  rating: real("rating").notNull(),
-  slope: integer("slope").notNull(),
-  yards: integer("yards"),
 });
 
 // CourseHole table
@@ -127,6 +124,13 @@ export const insertCourseTeeSchema = createInsertSchema(courseTees, {
   rating: z.number().min(60).max(80),
   slope: z.number().int().min(55).max(155),
   yards: z.number().int().min(0).optional(),
+});
+
+export const insertCourseTeeSchema = createInsertSchema(courseTees, {
+  courseId: z.string().min(1, "Course ID is required"),
+  name: z.string().min(1, "Tee name is required"),
+  slope: z.number().int().min(55).max(155),
+  rating: z.number().min(60).max(80),
 });
 
 export const insertTournamentSchema = createInsertSchema(tournaments, {

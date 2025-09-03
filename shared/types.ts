@@ -39,7 +39,6 @@ export interface CourseTee {
   name: string;
   rating: number;
   slope: number;
-  yards?: number;
 }
 
 export interface Hole {
