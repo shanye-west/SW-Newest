@@ -103,6 +103,12 @@ export default function PublicResults() {
     }
   };
 
+  const refreshResults = () => {
+    if (params?.token) {
+      fetchResults(params.token, true);
+    }
+  };
+
   useEffect(() => {
     if (params?.token) {
       fetchResults(params.token);

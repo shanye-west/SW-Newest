@@ -8,20 +8,35 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+interface CourseTee {
+  id: string;
+  name: string;
+  rating: number;
+  slope: number;
+  yards?: number;
+}
+
 interface Course {
   id: string;
   name: string;
   par: number;
   rating: number;
   slope: number;
+  tees: CourseTee[];
   createdAt: Date;
+}
+
+interface TeeFormData {
+  name: string;
+  rating: string;
+  slope: string;
+  yards: string;
 }
 
 interface CourseFormData {
   name: string;
   par: string;
-  rating: string;
-  slope: string;
+  tees: TeeFormData[];
 }
 
 export default function CoursesPage() {
@@ -31,8 +46,7 @@ export default function CoursesPage() {
   const [formData, setFormData] = useState<CourseFormData>({
     name: '',
     par: '',
-    rating: '',
-    slope: '',
+    tees: [{ name: '', rating: '', slope: '', yards: '' }],
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -53,14 +67,40 @@ export default function CoursesPage() {
     }
   };
 
+  const addTee = () => {
+    setFormData({
+      ...formData,
+      tees: [...formData.tees, { name: '', rating: '', slope: '', yards: '' }],
+    });
+  };
+
+  const updateTee = (index: number, field: keyof TeeFormData, value: string) => {
+    const newTees = [...formData.tees];
+    newTees[index] = { ...newTees[index], [field]: value };
+    setFormData({ ...formData, tees: newTees });
+  };
+
+  const removeTee = (index: number) => {
+    const newTees = formData.tees.filter((_, i) => i !== index);
+    setFormData({ ...formData, tees: newTees });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const tees = formData.tees.map(t => ({
+      name: t.name.trim(),
+      rating: parseFloat(t.rating),
+      slope: parseInt(t.slope),
+      yards: t.yards ? parseInt(t.yards) : undefined,
+    }));
+    const firstTee = tees[0];
     const courseData = {
       name: formData.name.trim(),
       par: parseInt(formData.par),
-      rating: parseFloat(formData.rating),
-      slope: parseInt(formData.slope),
+      rating: firstTee.rating,
+      slope: firstTee.slope,
+      tees,
     };
 
     try {
@@ -99,8 +139,12 @@ export default function CoursesPage() {
     setFormData({
       name: course.name,
       par: course.par.toString(),
-      rating: course.rating.toString(),
-      slope: course.slope.toString(),
+      tees: course.tees.map(t => ({
+        name: t.name,
+        rating: t.rating.toString(),
+        slope: t.slope.toString(),
+        yards: t.yards?.toString() || '',
+      })),
     });
     setIsFormOpen(true);
   };
@@ -135,8 +179,7 @@ export default function CoursesPage() {
     setFormData({
       name: '',
       par: '',
-      rating: '',
-      slope: '',
+      tees: [{ name: '', rating: '', slope: '', yards: '' }],
     });
     setEditingCourse(null);
     setIsFormOpen(false);
@@ -188,34 +231,81 @@ export default function CoursesPage() {
                   data-testid="input-course-par"
                 />
               </div>
-              <div>
-                <Label htmlFor="rating">Rating *</Label>
-                <Input
-                  id="rating"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={formData.rating}
-                  onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                  required
-                  data-testid="input-course-rating"
-                />
-              </div>
-              <div>
-                <Label htmlFor="slope">Slope *</Label>
-                <Input
-                  id="slope"
-                  type="number"
-                  min="0"
-                  value={formData.slope}
-                  onChange={(e) => setFormData({ ...formData, slope: e.target.value })}
-                  required
-                  data-testid="input-course-slope"
-                />
+              <div className="space-y-4">
+                <Label className="font-semibold">Tees *</Label>
+                {formData.tees.map((tee, index) => (
+                  <div key={index} className="border p-4 rounded space-y-2">
+                    <div className="flex space-x-2">
+                      <div className="flex-1">
+                        <Label htmlFor={`tee-name-${index}`}>Name</Label>
+                        <Input
+                          id={`tee-name-${index}`}
+                          value={tee.name}
+                          onChange={(e) => updateTee(index, 'name', e.target.value)}
+                          required
+                          data-testid={`input-tee-name-${index}`}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor={`tee-yards-${index}`}>Yards</Label>
+                        <Input
+                          id={`tee-yards-${index}`}
+                          type="number"
+                          value={tee.yards}
+                          onChange={(e) => updateTee(index, 'yards', e.target.value)}
+                          data-testid={`input-tee-yards-${index}`}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <div className="flex-1">
+                        <Label htmlFor={`tee-rating-${index}`}>Rating</Label>
+                        <Input
+                          id={`tee-rating-${index}`}
+                          type="number"
+                          step="0.1"
+                          value={tee.rating}
+                          onChange={(e) => updateTee(index, 'rating', e.target.value)}
+                          required
+                          data-testid={`input-tee-rating-${index}`}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor={`tee-slope-${index}`}>Slope</Label>
+                        <Input
+                          id={`tee-slope-${index}`}
+                          type="number"
+                          value={tee.slope}
+                          onChange={(e) => updateTee(index, 'slope', e.target.value)}
+                          required
+                          data-testid={`input-tee-slope-${index}`}
+                        />
+                      </div>
+                    </div>
+                    {formData.tees.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => removeTee(index)}
+                        data-testid={`button-remove-tee-${index}`}
+                      >
+                        Remove Tee
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addTee}
+                  data-testid="button-add-tee"
+                >
+                  Add Tee
+                </Button>
               </div>
               <div className="flex space-x-2">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={isLoading}
                   className="bg-green-600 hover:bg-green-700"
                   data-testid="button-save-course"
@@ -275,6 +365,15 @@ export default function CoursesPage() {
                 <span className="font-medium">Slope:</span>
                 <p data-testid={`course-slope-${course.id}`}>{course.slope}</p>
               </div>
+              {course.tees.map((tee) => (
+                <div key={tee.id}>
+                  <span className="font-medium">{tee.name}:</span>
+                  <p>
+                    {tee.rating}/{tee.slope}
+                    {tee.yards ? ` (${tee.yards} yds)` : ''}
+                  </p>
+                </div>
+              ))}
               <p className="text-xs text-gray-500 mt-2">
                 Added: {new Date(course.createdAt).toLocaleDateString()}
               </p>

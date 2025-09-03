@@ -28,6 +28,9 @@ export const courseTees = pgTable("course_tees", {
   id: text("id").primaryKey(),
   courseId: text("course_id").notNull(),
   name: text("name").notNull(),
+  slope: integer("slope").notNull(),
+  rating: real("rating").notNull(),
+  yards: integer("yards"),
 });
 
 // CourseHole table
