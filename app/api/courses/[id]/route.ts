@@ -19,8 +19,6 @@ export async function PUT(
       .set({
         name: data.name,
         par: data.par,
-        slope: firstTee.slope,
-        rating: firstTee.rating,
       })
       .where(eq(courses.id, params.id))
       .returning();
@@ -33,8 +31,6 @@ export async function PUT(
           id: nanoid(),
           courseId: params.id,
           name: t.name,
-          slope: t.slope,
-          rating: t.rating,
         }))
       )
       .returning();

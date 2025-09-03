@@ -47,8 +47,6 @@ export async function POST(request: NextRequest) {
         id: courseId,
         name: data.name,
         par: data.par,
-        slope: firstTee.slope,
-        rating: firstTee.rating,
       })
       .returning();
 
@@ -59,8 +57,6 @@ export async function POST(request: NextRequest) {
           id: nanoid(),
           courseId,
           name: t.name,
-          slope: t.slope,
-          rating: t.rating,
         }))
       )
       .returning();

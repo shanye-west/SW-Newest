@@ -27,9 +27,7 @@ interface Tournament {
   course: {
     name: string;
     par: number;
-    slope: number;
     rating: number;
-    tees: { id: string; name: string; slope: number; rating: number }[];
   };
 }
 
@@ -770,7 +768,6 @@ export default function TournamentDetail() {
                       <SelectContent>
                         {tournament?.course.tees.map((tee) => (
                           <SelectItem key={tee.id} value={tee.id}>
-                            {tee.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
