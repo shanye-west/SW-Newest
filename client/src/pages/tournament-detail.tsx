@@ -28,6 +28,8 @@ interface Tournament {
     name: string;
     par: number;
     rating: number;
+    slope: number;
+    tees: { id: string; name: string; rating: number; slope: number; yards?: number }[];
   };
 }
 
