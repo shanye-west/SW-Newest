@@ -23,6 +23,15 @@ export const courses = pgTable("courses", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// CourseTee table - stores multiple tees per course
+export const courseTees = pgTable("course_tees", {
+  id: text("id").primaryKey(),
+  courseId: text("course_id").notNull(),
+  name: text("name").notNull(),
+  slope: integer("slope").notNull(),
+  rating: real("rating").notNull(),
+});
+
 // CourseHole table
 export const courseHoles = pgTable("course_holes", {
   id: text("id").primaryKey(),
@@ -78,6 +87,7 @@ export const entries = pgTable("entries", {
   id: text("id").primaryKey(),
   tournamentId: text("tournament_id").notNull(),
   playerId: text("player_id").notNull(),
+  teeId: text("tee_id"),
   courseHandicap: integer("course_handicap").notNull(),
   playingCH: integer("playing_ch").notNull(),
   groupId: text("group_id"),
@@ -110,6 +120,13 @@ export const insertCourseSchema = createInsertSchema(courses, {
   rating: z.number().min(60).max(80),
 });
 
+export const insertCourseTeeSchema = createInsertSchema(courseTees, {
+  courseId: z.string().min(1, "Course ID is required"),
+  name: z.string().min(1, "Tee name is required"),
+  slope: z.number().int().min(55).max(155),
+  rating: z.number().min(60).max(80),
+});
+
 export const insertTournamentSchema = createInsertSchema(tournaments, {
   name: z.string().min(1, "Tournament name is required"),
   date: z.string().min(1, "Date is required"),
@@ -130,6 +147,7 @@ export const insertGroupSchema = createInsertSchema(groups, {
 export const insertEntrySchema = createInsertSchema(entries, {
   tournamentId: z.string().min(1, "Tournament ID is required"),
   playerId: z.string().min(1, "Player ID is required"),
+  teeId: z.string().min(1, "Tee ID is required"),
   courseHandicap: z.number().int().min(0).max(18),
   playingCH: z.number().int().min(0).max(18),
   hasPaid: z.boolean().optional(),
@@ -169,6 +187,7 @@ export const selectEntrySchema = createSelectSchema(entries);
 export const selectHoleScoreSchema = createSelectSchema(holeScores);
 export const selectAuditEventSchema = createSelectSchema(auditEvents);
 export const selectCourseHoleSchema = createSelectSchema(courseHoles);
+export const selectCourseTeeSchema = createSelectSchema(courseTees);
 
 // Types
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
@@ -179,6 +198,7 @@ export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertHoleScore = z.infer<typeof insertHoleScoreSchema>;
 export type InsertAuditEvent = z.infer<typeof insertAuditEventSchema>;
 export type InsertCourseHole = z.infer<typeof insertCourseHoleSchema>;
+export type InsertCourseTee = z.infer<typeof insertCourseTeeSchema>;
 
 export type Player = z.infer<typeof selectPlayerSchema>;
 export type Course = z.infer<typeof selectCourseSchema>;
@@ -188,6 +208,7 @@ export type Entry = z.infer<typeof selectEntrySchema>;
 export type HoleScore = z.infer<typeof selectHoleScoreSchema>;
 export type AuditEvent = z.infer<typeof selectAuditEventSchema>;
 export type CourseHole = z.infer<typeof selectCourseHoleSchema>;
+export type CourseTee = z.infer<typeof selectCourseTeeSchema>;
 
 // Extended types for UI
 export type TournamentWithCourse = Tournament & {
@@ -196,6 +217,10 @@ export type TournamentWithCourse = Tournament & {
 
 export type CourseWithHoles = Course & {
   holes: CourseHole[];
+};
+
+export type CourseWithTees = Course & {
+  tees: CourseTee[];
 };
 
 export type EntryWithPlayer = Entry & {

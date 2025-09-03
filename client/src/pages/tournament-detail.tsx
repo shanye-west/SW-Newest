@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit2, Trash2, Trophy, Users, Clock, UserMinus, Target, BarChart3, Share2, Copy, RefreshCw, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { calculateHandicaps, recomputeEntryHandicaps } from '../../../lib/handicap';
+import { calculateHandicaps } from '../../../lib/handicap';
 import { useTournamentContext } from '../contexts/TournamentContext';
 
 interface Tournament {
@@ -29,6 +29,7 @@ interface Tournament {
     par: number;
     slope: number;
     rating: number;
+    tees: { id: string; name: string; slope: number; rating: number }[];
   };
 }
 
@@ -43,11 +44,13 @@ interface Entry {
   id: string;
   tournamentId: string;
   playerId: string;
+  teeId: string;
   courseHandicap: number;
   playingCH: number;
   groupId?: string;
   hasPaid?: boolean;
   player: Player;
+  tee?: { id: string; name: string };
   group?: Group;
 }
 
@@ -75,6 +78,7 @@ export default function TournamentDetail() {
   const [isEntryFormOpen, setIsEntryFormOpen] = useState(false);
   const [isGroupFormOpen, setIsGroupFormOpen] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
+  const [selectedTeeId, setSelectedTeeId] = useState('');
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [groupFormData, setGroupFormData] = useState<GroupFormData>({
     name: '',
@@ -155,18 +159,18 @@ export default function TournamentDetail() {
 
   const handleAddEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPlayerId || !tournament) return;
+    if (!selectedPlayerId || !selectedTeeId || !tournament) return;
 
     setIsLoading(true);
     try {
       const selectedPlayer = availablePlayers.find(p => p.id === selectedPlayerId);
       if (!selectedPlayer) return;
 
-      // Calculate handicaps
+      const selectedTee = tournament.course.tees.find(t => t.id === selectedTeeId);
       const { courseHandicap, playingCH } = calculateHandicaps(
         selectedPlayer.handicapIndex,
-        tournament.course.slope,
-        tournament.course.rating,
+        selectedTee ? selectedTee.slope : tournament.course.slope,
+        selectedTee ? selectedTee.rating : tournament.course.rating,
         tournament.course.par,
         tournament.netAllowance
       );
@@ -176,6 +180,7 @@ export default function TournamentDetail() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId: selectedPlayerId,
+          teeId: selectedTeeId,
           courseHandicap,
           playingCH
         })
@@ -187,6 +192,7 @@ export default function TournamentDetail() {
           description: 'Player added to tournament'
         });
         setSelectedPlayerId('');
+        setSelectedTeeId('');
         setIsEntryFormOpen(false);
         fetchEntries(tournament.id);
       } else {
@@ -755,21 +761,37 @@ export default function TournamentDetail() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <Label htmlFor="teeId">Select Tee</Label>
+                    <Select value={selectedTeeId} onValueChange={setSelectedTeeId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a tee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tournament?.course.tees.map((tee) => (
+                          <SelectItem key={tee.id} value={tee.id}>
+                            {tee.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex space-x-2">
-                    <Button 
-                      type="submit" 
-                      disabled={isLoading || !selectedPlayerId}
+                    <Button
+                      type="submit"
+                      disabled={isLoading || !selectedPlayerId || !selectedTeeId}
                       className="bg-green-600 hover:bg-green-700"
                       data-testid="button-save-entry"
                     >
                       {isLoading ? 'Adding...' : 'Add Player'}
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => {
                         setIsEntryFormOpen(false);
                         setSelectedPlayerId('');
+                        setSelectedTeeId('');
                       }}
                       data-testid="button-cancel-entry"
                     >
