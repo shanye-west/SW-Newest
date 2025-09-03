@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { courses } from '@shared/schema';
-import { desc } from 'drizzle-orm';
+import { courses, courseTees } from '@shared/schema';
+import { desc, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 export async function GET() {
   try {
-    const allCourses = await db
-      .select()
+    const rows = await db
+      .select({ course: courses, tee: courseTees })
       .from(courses)
+      .leftJoin(courseTees, eq(courseTees.courseId, courses.id))
       .orderBy(desc(courses.createdAt));
 
-    return NextResponse.json(allCourses);
+    const map = new Map<string, any>();
+    for (const row of rows) {
+      const c = row.course;
+      if (!map.has(c.id)) {
+        map.set(c.id, { ...c, tees: [] });
+      }
+      if (row.tee) {
+        map.get(c.id).tees.push(row.tee);
+      }
+    }
+
+    return NextResponse.json(Array.from(map.values()));
   } catch (error) {
     console.error('Failed to fetch courses:', error);
     return NextResponse.json(
@@ -24,19 +36,36 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    
-      const [course] = await db
-        .insert(courses)
-        .values({
-          id: nanoid(),
-          name: data.name,
-          par: data.par,
-          slope: data.slope,
-          rating: data.rating,
-        })
-        .returning();
+    if (!Array.isArray(data.tees) || data.tees.length === 0) {
+      throw new Error('At least one tee is required');
+    }
+    const firstTee = data.tees[0];
+    const courseId = nanoid();
+    const [course] = await db
+      .insert(courses)
+      .values({
+        id: courseId,
+        name: data.name,
+        par: data.par,
+        slope: firstTee.slope,
+        rating: firstTee.rating,
+      })
+      .returning();
 
-      return NextResponse.json(course, { status: 201 });
+    const tees = await db
+      .insert(courseTees)
+      .values(
+        data.tees.map((t: any) => ({
+          id: nanoid(),
+          courseId,
+          name: t.name,
+          slope: t.slope,
+          rating: t.rating,
+        }))
+      )
+      .returning();
+
+    return NextResponse.json({ ...course, tees }, { status: 201 });
   } catch (error) {
     console.error('Failed to create course:', error);
     return NextResponse.json(

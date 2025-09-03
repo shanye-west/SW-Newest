@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { courses } from '@shared/schema';
+import { courses, courseTees } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 export async function PUT(
   request: NextRequest,
@@ -9,19 +10,36 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    
-      const [course] = await db
-        .update(courses)
-        .set({
-          name: data.name,
-          par: data.par,
-          slope: data.slope,
-          rating: data.rating,
-        })
-        .where(eq(courses.id, params.id))
-        .returning();
+    if (!Array.isArray(data.tees) || data.tees.length === 0) {
+      throw new Error('At least one tee is required');
+    }
+    const firstTee = data.tees[0];
+    const [course] = await db
+      .update(courses)
+      .set({
+        name: data.name,
+        par: data.par,
+        slope: firstTee.slope,
+        rating: firstTee.rating,
+      })
+      .where(eq(courses.id, params.id))
+      .returning();
 
-      return NextResponse.json(course);
+    await db.delete(courseTees).where(eq(courseTees.courseId, params.id));
+    const tees = await db
+      .insert(courseTees)
+      .values(
+        data.tees.map((t: any) => ({
+          id: nanoid(),
+          courseId: params.id,
+          name: t.name,
+          slope: t.slope,
+          rating: t.rating,
+        }))
+      )
+      .returning();
+
+    return NextResponse.json({ ...course, tees });
   } catch (error) {
     console.error('Failed to update course:', error);
     return NextResponse.json(

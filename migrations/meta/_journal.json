@@ -15,6 +15,13 @@
       "when": 1756605371750,
       "tag": "0001_puzzling_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1756606000000,
+      "tag": "0002_add_course_tees",
+      "breakpoints": true
     }
   ]
 }

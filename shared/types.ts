@@ -25,11 +25,20 @@ export interface Player {
 export interface Course {
   id: string;
   name: string;
+  par: number;
   rating: number;
   slope: number;
-  par: number;
   holes: Hole[];
+  tees?: CourseTee[];
   createdAt: Date;
+}
+
+export interface CourseTee {
+  id: string;
+  courseId: string;
+  name: string;
+  rating: number;
+  slope: number;
 }
 
 export interface Hole {
