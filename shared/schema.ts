@@ -114,23 +114,16 @@ export const insertPlayerSchema = createInsertSchema(players, {
 export const insertCourseSchema = createInsertSchema(courses, {
   name: z.string().min(1, "Course name is required"),
   par: z.number().int().min(60).max(80),
-  rating: z.number().min(60).max(80),
-  slope: z.number().int().min(55).max(155),
+  rating: z.number().positive(),
+  slope: z.number().int().positive(),
 });
 
 export const insertCourseTeeSchema = createInsertSchema(courseTees, {
   courseId: z.string().min(1, "Course ID is required"),
   name: z.string().min(1, "Tee name is required"),
-  rating: z.number().min(60).max(80),
-  slope: z.number().int().min(55).max(155),
+  rating: z.number().positive(),
+  slope: z.number().int().positive(),
   yards: z.number().int().min(0).optional(),
-});
-
-export const insertCourseTeeSchema = createInsertSchema(courseTees, {
-  courseId: z.string().min(1, "Course ID is required"),
-  name: z.string().min(1, "Tee name is required"),
-  slope: z.number().int().min(55).max(155),
-  rating: z.number().min(60).max(80),
 });
 
 export const insertTournamentSchema = createInsertSchema(tournaments, {

@@ -13,12 +13,15 @@ interface Course {
   name: string;
   par: number;
   rating: number;
+  slope: number;
   createdAt: Date;
 }
 
 interface CourseFormData {
   name: string;
   par: string;
+  rating: string;
+  slope: string;
 }
 
 export default function CoursesPage() {
@@ -28,8 +31,8 @@ export default function CoursesPage() {
   const [formData, setFormData] = useState<CourseFormData>({
     name: '',
     par: '',
-    tees: [
-    ]
+    rating: '',
+    slope: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -56,9 +59,8 @@ export default function CoursesPage() {
     const courseData = {
       name: formData.name.trim(),
       par: parseInt(formData.par),
-      tees: formData.tees.map(t => ({
-        name: t.name.trim(),
-      }))
+      rating: parseFloat(formData.rating),
+      slope: parseInt(formData.slope),
     };
 
     try {
@@ -97,9 +99,8 @@ export default function CoursesPage() {
     setFormData({
       name: course.name,
       par: course.par.toString(),
-      tees: course.tees.map(t => ({
-        name: t.name,
-      }))
+      rating: course.rating.toString(),
+      slope: course.slope.toString(),
     });
     setIsFormOpen(true);
   };
@@ -134,6 +135,8 @@ export default function CoursesPage() {
     setFormData({
       name: '',
       par: '',
+      rating: '',
+      slope: '',
     });
     setEditingCourse(null);
     setIsFormOpen(false);
@@ -185,47 +188,30 @@ export default function CoursesPage() {
                   data-testid="input-course-par"
                 />
               </div>
-              <div className="space-y-4">
-                {formData.tees.map((tee, index) => (
-                    <div>
-                      <Label>Tee Name *</Label>
-                      <Input
-                        value={tee.name}
-                        onChange={(e) => {
-                          const tees = [...formData.tees];
-                          tees[index].name = e.target.value;
-                          setFormData({ ...formData, tees });
-                        }}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label>Slope *</Label>
-                      <Input
-                        type="number"
-                        min="55"
-                        max="155"
-                        value={tee.slope}
-                        onChange={(e) => {
-                          const tees = [...formData.tees];
-                          tees[index].slope = e.target.value;
-                          setFormData({ ...formData, tees });
-                        }}
-                        required
-                        data-testid={`input-tee-slope-${index}`}
-                      />
-                    </div>
-                    <div>
-                      />
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                >
-                  Add Tee
-                </Button>
+              <div>
+                <Label htmlFor="rating">Rating *</Label>
+                <Input
+                  id="rating"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={formData.rating}
+                  onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
+                  required
+                  data-testid="input-course-rating"
+                />
+              </div>
+              <div>
+                <Label htmlFor="slope">Slope *</Label>
+                <Input
+                  id="slope"
+                  type="number"
+                  min="0"
+                  value={formData.slope}
+                  onChange={(e) => setFormData({ ...formData, slope: e.target.value })}
+                  required
+                  data-testid="input-course-slope"
+                />
               </div>
               <div className="flex space-x-2">
                 <Button 
@@ -277,18 +263,17 @@ export default function CoursesPage() {
                   </Button>
                 </div>
               </div>
-                <div>
-                  <span className="font-medium">Par:</span>
-                  <p data-testid={`course-par-${course.id}`}>{course.par}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Tee:</span>
-                  <p>{course.tees[0]?.name || 'Default'}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Rating:</span>
-                  <p data-testid={`course-rating-${course.id}`}>{course.tees[0]?.rating ?? course.rating}</p>
-                </div>
+              <div>
+                <span className="font-medium">Par:</span>
+                <p data-testid={`course-par-${course.id}`}>{course.par}</p>
+              </div>
+              <div>
+                <span className="font-medium">Rating:</span>
+                <p data-testid={`course-rating-${course.id}`}>{course.rating}</p>
+              </div>
+              <div>
+                <span className="font-medium">Slope:</span>
+                <p data-testid={`course-slope-${course.id}`}>{course.slope}</p>
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 Added: {new Date(course.createdAt).toLocaleDateString()}
