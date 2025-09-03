@@ -118,7 +118,14 @@ export const insertCourseSchema = createInsertSchema(courses, {
   slope: z.number().int().positive(),
 });
 
-export const insertCourseTeeSchema = createInsertSchema(courseTees, {
+// Tee insert schema
+//
+// Using a distinct name (`insertTeeSchema`) prevents collisions with other
+// exports when the shared schema module is bundled.  Previously the schema was
+// exported as `insertCourseTeeSchema` in multiple places which caused esbuild to
+// throw a "Multiple exports with the same name" error when starting the server.
+// Renaming the schema resolves the start‑up failure.
+export const insertTeeSchema = createInsertSchema(courseTees, {
   courseId: z.string().min(1, "Course ID is required"),
   name: z.string().min(1, "Tee name is required"),
   rating: z.number().positive(),
@@ -197,7 +204,8 @@ export type InsertEntry = z.infer<typeof insertEntrySchema>;
 export type InsertHoleScore = z.infer<typeof insertHoleScoreSchema>;
 export type InsertAuditEvent = z.infer<typeof insertAuditEventSchema>;
 export type InsertCourseHole = z.infer<typeof insertCourseHoleSchema>;
-export type InsertCourseTee = z.infer<typeof insertCourseTeeSchema>;
+// Schema used when inserting a new tee
+export type InsertCourseTee = z.infer<typeof insertTeeSchema>;
 
 export type Player = z.infer<typeof selectPlayerSchema>;
 export type Course = z.infer<typeof selectCourseSchema>;
